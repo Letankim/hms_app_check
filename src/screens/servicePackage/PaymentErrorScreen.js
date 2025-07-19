@@ -1,7 +1,7 @@
 import { useEffect,useRef } from "react"
 import { View,Text,StyleSheet,TouchableOpacity,Platform,Animated,Dimensions,ScrollView } from "react-native"
 import Loading from "components/Loading";
-import { showErrorFetchAPI, showSuccessMessage } from "utils/toastUtil";
+import { showErrorFetchAPI,showSuccessMessage } from "utils/toastUtil";
 import { LinearGradient } from "expo-linear-gradient"
 import { Ionicons,MaterialCommunityIcons } from "@expo/vector-icons"
 import { StatusBar } from "expo-status-bar"

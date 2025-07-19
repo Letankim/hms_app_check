@@ -129,6 +129,19 @@ export const getMyGroupCreated = async (id,params = {}) => {
   }
 };
 
+export const getMyGroupFilter = async (searchTerm) => {
+  try {
+    const response = await apiClient.get(`CommunityGroup/my-groups/filter`,{ searchTerm });
+    if (response.data.statusCode === 200) {
+      return response.data;
+    } else {
+      throw new Error(response.data.message || 'Failed to fetch my group');
+    }
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const getMyGroupJoined = async (excludeId,params = {}) => {
   try {
     const response = await apiClient.get(`CommunityGroup/my-joined-groups/${excludeId}`,{ params });

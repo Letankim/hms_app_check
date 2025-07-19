@@ -26,7 +26,7 @@ apiClient.interceptors.response.use(
     },
     async (error) => {
         const originalRequest = error.config;
-        
+
         if (error.response?.status === 401) {
             throw new Error(error.response?.data?.message || 'Unauthorized access');
         }
@@ -40,7 +40,7 @@ export const apiUserPaymentService = {
             const response = await apiClient.post('/UserPayment/purchase/m',purchaseDto);
             return response.data;
         } catch (error) {
-            throw error.response?.data || { message: 'Failed to create payment.' };
+            throw error;
         }
     },
 

@@ -8,13 +8,12 @@ import {
   Platform,
 } from "react-native"
 import Loading from "components/Loading";
-import { showErrorFetchAPI, showSuccessMessage } from "utils/toastUtil";
+import { showErrorFetchAPI,showErrorMessage,showSuccessMessage } from "utils/toastUtil";
 import { LinearGradient } from "expo-linear-gradient"
 import { apiUserPaymentService } from "services/apiUserPaymentService"
 import { AuthContext } from "context/AuthContext"
 import { Ionicons,MaterialCommunityIcons } from "@expo/vector-icons"
 import DynamicStatusBar from "screens/statusBar/DynamicStatusBar"
-import { theme } from "theme/color"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -28,12 +27,12 @@ const PaymentScreen = ({ route,navigation }) => {
 
   const handleConfirmPayment = async () => {
     if (!user?.userId) {
-      showErrorFetchAPI("Please log in to continue with payment.");
+      showErrorMessage("Please log in to continue with payment.");
       return;
     }
 
     if (!termsAccepted) {
-      showErrorFetchAPI("Please accept the terms and conditions to proceed.");
+      showErrorMessage("Please accept the terms and conditions to proceed.");
       return;
     }
 
@@ -53,10 +52,10 @@ const PaymentScreen = ({ route,navigation }) => {
           paymentUrl: response.data.paymentLink
         });
       } else {
-        showErrorFetchAPI(response.message || "Unable to process payment request.");
+        showErrorMessage(response.message || "Unable to process payment request.");
       }
     } catch (error) {
-      showErrorFetchAPI(error.message || "An error occurred while processing your payment.");
+      showErrorFetchAPI(error);
     } finally {
       setLoading(false);
     }
@@ -68,22 +67,22 @@ const PaymentScreen = ({ route,navigation }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <DynamicStatusBar backgroundColor={theme.primaryColor} />
+      <DynamicStatusBar backgroundColor="#FFFFFF" />
       {loading && <Loading />}
       {!loading && (
         <>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: '#FFFFFF' }]}> 
-            <TouchableOpacity style={[styles.backBtn, { backgroundColor: '#F1F5F9' }]} onPress={() => navigation.goBack()} disabled={loading}>
+          <View style={[styles.header,{ backgroundColor: '#FFFFFF' }]}>
+            <TouchableOpacity style={[styles.backBtn,{ backgroundColor: '#F1F5F9' }]} onPress={() => navigation.goBack()} disabled={loading}>
               <Ionicons name="arrow-back" size={24} color="#1E293B" />
             </TouchableOpacity>
             <View style={styles.headerTitleContainer}>
-              <Text style={[styles.headerTitle, { color: '#1E293B' }]}>Secure Payment</Text>
-              <Text style={[styles.headerSubtitle, { color: '#64748B' }]}>Complete your purchase</Text>
+              <Text style={[styles.headerTitle,{ color: '#1E293B' }]}>Secure Payment</Text>
+              <Text style={[styles.headerSubtitle,{ color: '#64748B' }]}>Complete your purchase</Text>
             </View>
             <View style={styles.headerRight}>
-              <View style={[styles.securityBadge, { backgroundColor: '#F1F5F9' }]}> 
-                <Ionicons name="shield-checkmark" size={16} color="#1E293B" />
+              <View style={[styles.securityBadge,{ backgroundColor: '#F1F5F9' }]}>
+                <Ionicons name="shield-checkmark" size={16} color="#3B82F6" />
               </View>
             </View>
           </View>
@@ -93,20 +92,20 @@ const PaymentScreen = ({ route,navigation }) => {
             <View style={styles.summaryCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="receipt-outline" size={20} color="#1E293B" />
+                  <Ionicons name="receipt-outline" size={20} color="#3B82F6" />
                 </View>
                 <Text style={styles.cardHeaderTitle}>Order Summary</Text>
               </View>
 
               <View style={styles.packageInfo}>
-                <View style={[styles.packageIconContainer, { backgroundColor: '#F1F5F9' }]}> 
-                  <MaterialCommunityIcons name="dumbbell" size={32} color="#1E293B" />
+                <View style={[styles.packageIconContainer,{ backgroundColor: '#F1F5F9' }]}>
+                  <MaterialCommunityIcons name="dumbbell" size={32} color="#3B82F6" />
                 </View>
                 <View style={styles.packageDetails}>
                   <Text style={styles.packageName}>{packageName || "Fitness Package"}</Text>
                   <Text style={styles.packageTrainer}>Personal Trainer: {trainerFullName || "Professional Coach"}</Text>
                   <View style={styles.packageBadge}>
-                    <Ionicons name="star" size={12} color="#1E293B" />
+                    <Ionicons name="star" size={12} color="#FFD700" />
                     <Text style={styles.packageBadgeText}>Premium Package</Text>
                   </View>
                 </View>
@@ -122,7 +121,7 @@ const PaymentScreen = ({ route,navigation }) => {
 
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Total Amount</Text>
-                  <Text style={[styles.totalValue, { color: '#1E293B' }]}>${formattedPrice}</Text>
+                  <Text style={[styles.totalValue,{ color: '#1E3A8A' }]}>${formattedPrice}</Text>
                 </View>
               </View>
             </View>
@@ -131,27 +130,27 @@ const PaymentScreen = ({ route,navigation }) => {
             <View style={styles.paymentMethodCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="card-outline" size={20} color="#1E293B" />
+                  <Ionicons name="card-outline" size={20} color="#3B82F6" />
                 </View>
                 <Text style={styles.cardHeaderTitle}>Payment Method</Text>
               </View>
 
               <View style={styles.paymentMethodItem}>
-                <View style={[styles.paymentMethodIcon, { backgroundColor: '#F1F5F9' }]}> 
-                  <Ionicons name="business-outline" size={24} color="#1E293B" />
+                <View style={[styles.paymentMethodIcon,{ backgroundColor: '#F1F5F9' }]}>
+                  <Ionicons name="business-outline" size={24} color="#3B82F6" />
                 </View>
                 <View style={styles.paymentMethodContent}>
                   <Text style={styles.paymentMethodTitle}>Bank Transfer</Text>
                   <Text style={styles.paymentMethodSubtitle}>Secure bank-to-bank transfer</Text>
                 </View>
                 <View style={styles.selectedIndicator}>
-                  <Ionicons name="checkmark-circle" size={24} color="#1E293B" />
+                  <Ionicons name="checkmark-circle" size={24} color="#10B981" />
                 </View>
               </View>
 
               <View style={styles.paymentNote}>
-                <Ionicons name="information-circle-outline" size={16} color="#1E293B" />
-                <Text style={[styles.paymentNoteText, { color: '#1E293B' }]}> 
+                <Ionicons name="information-circle-outline" size={16} color="#3B82F6" />
+                <Text style={[styles.paymentNoteText,{ color: '#64748B' }]}>
                   Bank transfer details will be provided after payment confirmation.
                 </Text>
               </View>
@@ -161,7 +160,7 @@ const PaymentScreen = ({ route,navigation }) => {
             <View style={styles.transactionCard}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="document-text-outline" size={20} color="#1E293B" />
+                  <Ionicons name="document-text-outline" size={20} color="#3B82F6" />
                 </View>
                 <Text style={styles.cardHeaderTitle}>Transaction Information</Text>
               </View>
@@ -203,9 +202,9 @@ const PaymentScreen = ({ route,navigation }) => {
                 </View>
                 <View style={styles.termsTextContainer}>
                   <Text style={styles.termsText}>
-                    I agree to the <Text style={[styles.termsLink, { color: '#1E293B' }]}>Terms of Service</Text>,{" "}
-                    <Text style={[styles.termsLink, { color: '#1E293B' }]}>Privacy Policy</Text>, and{" "}
-                    <Text style={[styles.termsLink, { color: '#1E293B' }]}>Payment Terms</Text>
+                    I agree to the <Text style={[styles.termsLink,{ color: '#3B82F6' }]}>Terms of Service</Text>,{" "}
+                    <Text style={[styles.termsLink,{ color: '#3B82F6' }]}>Privacy Policy</Text>, and{" "}
+                    <Text style={[styles.termsLink,{ color: '#3B82F6' }]}>Payment Terms</Text>
                   </Text>
                   <Text style={styles.termsSubtext}>
                     By proceeding, you acknowledge that you have read and understood our policies.
@@ -223,7 +222,7 @@ const PaymentScreen = ({ route,navigation }) => {
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={termsAccepted && !loading ? ["#4F46E5","#6366F1"] : ["#94A3B8","#CBD5E1"]}
+                  colors={termsAccepted && !loading ? ["#3B82F6","#1E3A8A"] : ["#94A3B8","#CBD5E1"]}
                   style={styles.confirmButtonGradient}
                 >
                   <Ionicons name="card-outline" size={20} color="#FFFFFF" />
@@ -243,7 +242,7 @@ const PaymentScreen = ({ route,navigation }) => {
 
             {/* Security Notice */}
             <View style={styles.securityContainer}>
-              <LinearGradient colors={["#EEF2FF","#F8FAFC"]} style={styles.securityContent}>
+              <LinearGradient colors={["#EFF6FF","#F8FAFC"]} style={styles.securityContent}>
                 <Ionicons name="shield-checkmark" size={20} color="#10B981" />
                 <View style={styles.securityTextContainer}>
                   <Text style={styles.securityTitle}>Secure & Protected</Text>
@@ -273,21 +272,21 @@ const PaymentScreen = ({ route,navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.primaryColor,
+    backgroundColor: "#F8FAFC",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 16 : 16,
   },
   backBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#F1F5F9",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -298,11 +297,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#1E293B",
   },
   headerSubtitle: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: "#64748B",
     marginTop: 2,
   },
   headerRight: {
@@ -313,7 +312,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "#F1F5F9",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -328,11 +327,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 24,
-    margin: 20,
+    margin: 16,
     marginBottom: 16,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
   },
@@ -345,7 +344,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#EFF6FF",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -353,7 +352,7 @@ const styles = StyleSheet.create({
   cardHeaderTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
   },
   packageInfo: {
     flexDirection: "row",
@@ -367,6 +366,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
+    backgroundColor: "#F1F5F9",
   },
   packageDetails: {
     flex: 1,
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   packageName: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
     marginBottom: 4,
   },
   packageTrainer: {
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   priceValue: {
     fontSize: 16,
-    color: "#0F172A",
+    color: "#1E293B",
     fontWeight: "600",
   },
   totalRow: {
@@ -431,22 +431,22 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
   },
   totalValue: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#4F46E5",
+    color: "#1E3A8A",
   },
   paymentMethodCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 24,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
   },
@@ -454,10 +454,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#EFF6FF",
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#4F46E5",
+    borderWidth: 1,
+    borderColor: "#3B82F6",
     marginBottom: 16,
   },
   paymentMethodIcon: {
@@ -467,6 +467,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
+    backgroundColor: "#F1F5F9",
   },
   paymentMethodContent: {
     flex: 1,
@@ -474,7 +475,7 @@ const styles = StyleSheet.create({
   paymentMethodTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
     marginBottom: 4,
   },
   paymentMethodSubtitle: {
@@ -487,7 +488,7 @@ const styles = StyleSheet.create({
   paymentNote: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#EFF6FF",
     padding: 16,
     borderRadius: 12,
     gap: 12,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
   paymentNoteText: {
     flex: 1,
     fontSize: 14,
-    color: "#4F46E5",
+    color: "#64748B",
     lineHeight: 20,
     fontWeight: "500",
   },
@@ -503,11 +504,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 24,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
   },
@@ -527,7 +528,7 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#0F172A",
+    color: "#1E293B",
     textAlign: "right",
     flex: 1,
     marginLeft: 16,
@@ -556,11 +557,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 24,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
   },
@@ -573,27 +574,27 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: "#CBD5E1",
+    borderColor: "#E2E8F0",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
     marginTop: 2,
   },
   checkboxChecked: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#4F46E5",
+    backgroundColor: "#3B82F6",
+    borderColor: "#3B82F6",
   },
   termsTextContainer: {
     flex: 1,
   },
   termsText: {
     fontSize: 15,
-    color: "#374151",
+    color: "#1E293B",
     lineHeight: 22,
     marginBottom: 8,
   },
   termsLink: {
-    color: "#4F46E5",
+    color: "#3B82F6",
     fontWeight: "600",
   },
   termsSubtext: {
@@ -602,17 +603,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   buttonContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     marginBottom: 20,
   },
   confirmButton: {
     borderRadius: 16,
     overflow: "hidden",
     marginBottom: 12,
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 4,
   },
   confirmButtonDisabled: {
@@ -638,7 +639,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     alignItems: "center",
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   cancelButtonText: {
@@ -647,7 +648,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   securityContainer: {
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
   },
   securityContent: {
@@ -663,7 +664,7 @@ const styles = StyleSheet.create({
   securityTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
     marginBottom: 4,
   },
   securityText: {
@@ -675,10 +676,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 20,
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginBottom: 16,
     alignItems: "center",
-    shadowColor: "#4F46E5",
+    shadowColor: "#000",
     shadowOffset: { width: 0,height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -687,7 +688,7 @@ const styles = StyleSheet.create({
   supportTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
+    color: "#1E293B",
     marginBottom: 8,
   },
   supportText: {

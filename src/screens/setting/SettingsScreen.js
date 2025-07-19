@@ -471,16 +471,9 @@ export default function SettingsScreen({ navigation }) {
       if (!user || !user.userId) {
         return;
       }
-
-      const response = await profileService.getLatestProfile(user.userId)
-      if (response.statusCode === 200 && response.data) {
-        setProfile(response.data.profile)
-        setDataResponse(response.data)
-        const storedAvatar = await AsyncStorage.getItem("userAvatar")
-        if (storedAvatar) setAvatar(storedAvatar)
-      } else {
-        showErrorMessage(response.message || "Failed to load profile.")
-      }
+      const userRes = await apiUserService.getUserById(user.userId);
+      setDataResponse(userRes?.data);
+      setAvatar(userRes?.data?.avatar);
     } catch (error) {
       showErrorFetchAPI(error);
     } finally {

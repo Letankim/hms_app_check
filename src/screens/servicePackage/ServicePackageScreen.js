@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useContext } from "react";
+import React,{ useState,useEffect,useRef,useCallback,useContext } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,9 @@ import {
   ScrollView,
   Image,
 } from "react-native";
-import { showErrorFetchAPI, showSuccessMessage } from "utils/toastUtil";
+import { showErrorFetchAPI,showSuccessMessage } from "utils/toastUtil";
 import Loading from "components/Loading";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons,MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "context/AuthContext";
 import { ThemeContext } from "components/theme/ThemeContext";
@@ -24,42 +24,42 @@ import Header from "components/Header";
 import trainerService from "services/apiTrainerService";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const { width, height } = Dimensions.get("window");
+const { width,height } = Dimensions.get("window");
 
 export default function ServicePackageScreen({ navigation }) {
   const { user } = useAuth();
   const { colors } = useContext(ThemeContext);
-  
-  // State management
-  const [packages, setPackages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [tempSearchTerm, setTempSearchTerm] = useState("");
-  const [hasMore, setHasMore] = useState(true);
-  
-  const [filters, setFilters] = useState({
+
+  const [packages,setPackages] = useState([]);
+  const [loading,setLoading] = useState(true);
+  const [refreshing,setRefreshing] = useState(false);
+  const [showFilterModal,setShowFilterModal] = useState(false);
+  const [pageNumber,setPageNumber] = useState(1);
+  const [pageSize,setPageSize] = useState(10);
+  const [totalPages,setTotalPages] = useState(1);
+  const [totalItems,setTotalItems] = useState(0);
+  const [searchTerm,setSearchTerm] = useState("");
+  const [tempSearchTerm,setTempSearchTerm] = useState("");
+  const [hasMore,setHasMore] = useState(true);
+  const [isLoadingMore,setIsLoadingMore] = useState(false);
+
+  const [filters,setFilters] = useState({
     minPrice: "",
     maxPrice: "",
     sortBy: "packageId",
     sortDescending: true,
   });
-  
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const bannerAnim = useRef(new Animated.Value(0)).current;
-  const [tempFilters, setTempFilters] = useState(filters);
-  const [trainerRatings, setTrainerRatings] = useState({});
-  const [trainerClients, setTrainerClients] = useState({});
-  const [trainerExperience, setTrainerExperience] = useState({});
+  const [tempFilters,setTempFilters] = useState(filters);
+  const [trainerRatings,setTrainerRatings] = useState({});
+  const [trainerClients,setTrainerClients] = useState({});
+  const [trainerExperience,setTrainerExperience] = useState({});
 
   // Fetch packages from API
   const fetchPackages = useCallback(
-    async (search = "", page = 1) => {
+    async (search = "",page = 1,append = false) => {
       if (!user?.userId) {
         setPackages([]);
         setTotalPages(1);
@@ -68,23 +68,24 @@ export default function ServicePackageScreen({ navigation }) {
         setLoading(false);
         return;
       }
-      setLoading(true);
+      setLoading(page === 1);
+      setIsLoadingMore(page > 1);
       try {
         const params = {
-          search,
-          pageNumber: page,
-          pageSize,
-          minPrice: filters.minPrice ? parseFloat(filters.minPrice) : undefined,
-          maxPrice: filters.maxPrice ? parseFloat(filters.maxPrice) : undefined,
-          sortBy: filters.sortBy,
-          sortDescending: filters.sortDescending,
+          Search: search,
+          PageNumber: page,
+          PageSize: pageSize,
+          MinPrice: filters.minPrice ? parseFloat(filters.minPrice) : undefined,
+          MaxPrice: filters.maxPrice ? parseFloat(filters.maxPrice) : undefined,
+          SortBy: filters.sortBy,
+          SortDescending: filters.sortDescending,
         };
         const res = await trainerService.getAllActivePackages(params);
         const data = res.data?.packages || [];
-        setPackages((prev) => (page === 1 ? data : [...prev, ...data]));
+        setPackages((prev) => (append ? [...prev,...data] : data));
         setTotalPages(res.data?.totalPages || 1);
         setTotalItems(res.data?.totalCount || data.length);
-        setHasMore(res.data?.pageNumber < res.data?.totalPages);
+        setHasMore(page < res.data?.totalPages);
         const trainerClientsMap = calculateTrainerClients(data);
         setTrainerClients(trainerClientsMap);
         await fetchTrainerRatings(data);
@@ -97,37 +98,45 @@ export default function ServicePackageScreen({ navigation }) {
         showErrorFetchAPI("Unable to load packages: " + (e?.message || "Unknown error"));
       }
       setLoading(false);
+      setIsLoadingMore(false);
     },
-    [user?.userId, filters, pageSize],
+    [user?.userId,filters,pageSize],
   );
 
+  // Load more packages when reaching the end of the list
+  const loadMore = useCallback(() => {
+    if (!hasMore || isLoadingMore || loading) return;
+    const nextPage = pageNumber + 1;
+    setPageNumber(nextPage);
+    fetchPackages(searchTerm,nextPage,true);
+  },[hasMore,isLoadingMore,loading,pageNumber,fetchPackages,searchTerm]);
+
   useEffect(() => {
-    Animated.timing(fadeAnim, {
+    Animated.timing(fadeAnim,{
       toValue: 1,
       duration: 600,
       useNativeDriver: true,
     }).start();
 
-    // Banner animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(bannerAnim, {
+        Animated.timing(bannerAnim,{
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(bannerAnim, {
+        Animated.timing(bannerAnim,{
           toValue: 0,
           duration: 2000,
           useNativeDriver: true,
         }),
       ])
     ).start();
-  }, []);
+  },[]);
 
   useEffect(() => {
-    fetchPackages();
-  }, [fetchPackages]);
+    fetchPackages(searchTerm,1);
+  },[fetchPackages,searchTerm]);
 
   const calculateTrainerClients = (packages) => {
     const trainerClients = {};
@@ -143,7 +152,7 @@ export default function ServicePackageScreen({ navigation }) {
   const fetchTrainerRatings = async (packages) => {
     const ratingsMap = {};
     const trainerIds = [...new Set(packages.map((pkg) => pkg.trainerId))];
-    
+
     await Promise.all(
       trainerIds.map(async (trainerId) => {
         try {
@@ -164,7 +173,7 @@ export default function ServicePackageScreen({ navigation }) {
   const fetchTrainerExperience = async (packages) => {
     const experienceMap = {};
     const trainerIds = [...new Set(packages.map((pkg) => pkg.trainerId))];
-    
+
     await Promise.all(
       trainerIds.map(async (trainerId) => {
         try {
@@ -182,14 +191,14 @@ export default function ServicePackageScreen({ navigation }) {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setPageNumber(1);
-    fetchPackages(searchTerm, 1).finally(() => setRefreshing(false));
-  }, [fetchPackages, searchTerm]);
+    fetchPackages(searchTerm,1).finally(() => setRefreshing(false));
+  },[fetchPackages,searchTerm]);
 
   const handleSearch = useCallback(() => {
     setSearchTerm(tempSearchTerm);
     setPageNumber(1);
-    fetchPackages(tempSearchTerm, 1);
-  }, [fetchPackages, tempSearchTerm]);
+    fetchPackages(tempSearchTerm,1);
+  },[fetchPackages,tempSearchTerm]);
 
   const getPackageIcon = (packageName) => {
     if (!packageName) return "fitness";
@@ -206,7 +215,7 @@ export default function ServicePackageScreen({ navigation }) {
       case "yoga":
         return <MaterialCommunityIcons name="yoga" color="#8B5CF6" {...iconProps} />;
       case "nutrition":
-        return <Ionicons name="nutrition" color="#F59E0B" {...iconProps} />;
+        return <Material CommunityIcons name="nutrition" color="#F59E0B" {...iconProps} />;
       case "cardio":
         return <Ionicons name="heart" color="#EF4444" {...iconProps} />;
       default:
@@ -218,7 +227,7 @@ export default function ServicePackageScreen({ navigation }) {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 !== 0;
-    
+
     for (let i = 0; i < fullStars; i++) {
       stars.push(<Ionicons key={i} name="star" size={12} color="#FFD700" />);
     }
@@ -234,16 +243,16 @@ export default function ServicePackageScreen({ navigation }) {
 
   const renderPromoBanner = () => {
     const scaleAnim = bannerAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 1.02],
+      inputRange: [0,1],
+      outputRange: [1,1.02],
     });
 
     return (
-      <Animated.View style={[styles.promoBanner, { transform: [{ scale: scaleAnim }] }]}>
+      <Animated.View style={[styles.promoBanner,{ transform: [{ scale: scaleAnim }] }]}>
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['#667eea','#764ba2']}
+          start={{ x: 0,y: 0 }}
+          end={{ x: 1,y: 1 }}
           style={styles.bannerGradient}
         >
           <View style={styles.bannerContent}>
@@ -256,7 +265,6 @@ export default function ServicePackageScreen({ navigation }) {
                 <Text style={styles.bannerSubtitle}>Premium training packages</Text>
               </View>
             </View>
-      
           </View>
         </LinearGradient>
       </Animated.View>
@@ -272,11 +280,11 @@ export default function ServicePackageScreen({ navigation }) {
     const progressPercentage = (item.currentSubscribers / item.maxSubscribers) * 100;
 
     return (
-      <Animated.View style={[styles.packageItem, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.packageItem,{ opacity: fadeAnim }]}>
         <TouchableOpacity
-          style={[styles.packageCard, isFull && styles.packageCardDisabled]}
+          style={[styles.packageCard,isFull && styles.packageCardDisabled]}
           onPress={() => {
-            if (!isFull) navigation.navigate("PackageDetail", { package: item, totalClients });
+            if (!isFull) navigation.navigate("PackageDetail",{ package: item,totalClients });
           }}
           activeOpacity={0.8}
           disabled={isFull}
@@ -318,7 +326,7 @@ export default function ServicePackageScreen({ navigation }) {
             {/* Description */}
             {item.description && (
               <Text style={styles.description} numberOfLines={2}>
-                {item.description.replace(/<[^>]+>/g, "")}
+                {item.description.replace(/<[^>]+>/g,"")}
               </Text>
             )}
 
@@ -341,14 +349,14 @@ export default function ServicePackageScreen({ navigation }) {
             {/* Progress Bar */}
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View 
+                <View
                   style={[
-                    styles.progressFill, 
-                    { 
-                      width: `${Math.min(progressPercentage, 100)}%`,
-                      backgroundColor: isFull ? '#EF4444' : progressPercentage > 80 ? '#F59E0B' : '#10B981'
-                    }
-                  ]} 
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(progressPercentage,100)}%`,
+                      backgroundColor: isFull ? '#EF4444' : progressPercentage > 80 ? '#F59E0B' : '#10B981',
+                    },
+                  ]}
                 />
               </View>
               <Text style={styles.progressText}>
@@ -385,13 +393,13 @@ export default function ServicePackageScreen({ navigation }) {
           {/* Action Button */}
           <View style={styles.actionSection}>
             <TouchableOpacity
-              style={[styles.actionButton, isFull && styles.actionButtonDisabled]}
+              style={[styles.actionButton,isFull && styles.actionButtonDisabled]}
               onPress={() => {
-                if (!isFull) navigation.navigate("PackageDetail", { package: item, totalClients });
+                if (!isFull) navigation.navigate("PackageDetail",{ package: item,totalClients });
               }}
               disabled={isFull}
             >
-              <Text style={[styles.actionButtonText, isFull && styles.actionButtonTextDisabled]}>
+              <Text style={[styles.actionButtonText,isFull && styles.actionButtonTextDisabled]}>
                 {isFull ? "Package Full" : "Start Training"}
               </Text>
               {!isFull && <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />}
@@ -420,39 +428,39 @@ export default function ServicePackageScreen({ navigation }) {
                 <Ionicons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalContent}>
               <View style={styles.filterSection}>
                 <Text style={styles.sectionTitle}>Price Range</Text>
                 <View style={styles.priceInputs}>
                   <TextInput
                     style={styles.priceInput}
-                    placeholder="Min"
+                    placeholder="Min Price"
                     placeholderTextColor="#94A3B8"
                     value={tempFilters.minPrice}
-                    onChangeText={(text) => setTempFilters({ ...tempFilters, minPrice: text })}
+                    onChangeText={(text) => setTempFilters({ ...tempFilters,minPrice: text })}
                     keyboardType="numeric"
                   />
                   <Text style={styles.priceSeparator}>-</Text>
                   <TextInput
                     style={styles.priceInput}
-                    placeholder="Max"
+                    placeholder="Max Price"
                     placeholderTextColor="#94A3B8"
                     value={tempFilters.maxPrice}
-                    onChangeText={(text) => setTempFilters({ ...tempFilters, maxPrice: text })}
+                    onChangeText={(text) => setTempFilters({ ...tempFilters,maxPrice: text })}
                     keyboardType="numeric"
                   />
                 </View>
               </View>
-              
+
               <View style={styles.filterSection}>
                 <Text style={styles.sectionTitle}>Sort By</Text>
                 <View style={styles.sortOptions}>
                   {[
-                    { label: "Price", value: "price" },
-                    { label: "Rating", value: "rating" },
-                    { label: "Duration", value: "days" },
-                    { label: "Latest", value: "created" },
+                    { label: "Price",value: "price" },
+                    { label: "Rating",value: "rating" },
+                    { label: "Duration",value: "days" },
+                    { label: "Latest",value: "created" },
                   ].map((option) => (
                     <TouchableOpacity
                       key={option.value}
@@ -460,7 +468,7 @@ export default function ServicePackageScreen({ navigation }) {
                         styles.sortOption,
                         tempFilters.sortBy === option.value && styles.sortOptionActive,
                       ]}
-                      onPress={() => setTempFilters({ ...tempFilters, sortBy: option.value })}
+                      onPress={() => setTempFilters({ ...tempFilters,sortBy: option.value })}
                     >
                       <Text
                         style={[
@@ -475,12 +483,12 @@ export default function ServicePackageScreen({ navigation }) {
                 </View>
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.clearButton}
                 onPress={() => {
-                  setTempFilters({ minPrice: "", maxPrice: "", sortBy: "packageId", sortDescending: true });
+                  setTempFilters({ minPrice: "",maxPrice: "",sortBy: "packageId",sortDescending: true });
                 }}
               >
                 <Text style={styles.clearButtonText}>Clear</Text>
@@ -491,7 +499,7 @@ export default function ServicePackageScreen({ navigation }) {
                   setFilters(tempFilters);
                   setShowFilterModal(false);
                   setPageNumber(1);
-                  fetchPackages(searchTerm, 1);
+                  fetchPackages(searchTerm,1);
                 }}
               >
                 <Text style={styles.applyButtonText}>Apply</Text>
@@ -511,6 +519,15 @@ export default function ServicePackageScreen({ navigation }) {
     </View>
   );
 
+  const renderFooter = () => {
+    if (!isLoadingMore) return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <Loading />
+      </View>
+    );
+  };
+
   if (loading && pageNumber === 1) {
     return <Loading />;
   }
@@ -522,7 +539,7 @@ export default function ServicePackageScreen({ navigation }) {
         title="Training Packages"
         onBack={() => navigation.goBack()}
         rightActions={[
-          { icon: "options-outline", onPress: () => setShowFilterModal(true), color: "#3B82F6" },
+          { icon: "options-outline",onPress: () => setShowFilterModal(true),color: "#3B82F6" },
         ]}
       />
 
@@ -539,11 +556,13 @@ export default function ServicePackageScreen({ navigation }) {
             onSubmitEditing={handleSearch}
           />
           {tempSearchTerm ? (
-            <TouchableOpacity onPress={() => {
-              setTempSearchTerm("");
-              setSearchTerm("");
-              fetchPackages("", 1);
-            }}>
+            <TouchableOpacity
+              onPress={() => {
+                setTempSearchTerm("");
+                setSearchTerm("");
+                fetchPackages("",1);
+              }}
+            >
               <Ionicons name="close-circle" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ) : (
@@ -552,7 +571,7 @@ export default function ServicePackageScreen({ navigation }) {
             </TouchableOpacity>
           )}
         </View>
-        
+
         <View style={styles.resultsInfo}>
           <Text style={styles.resultsText}>{totalItems} packages available</Text>
           <View style={styles.featuredBadge}>
@@ -571,8 +590,11 @@ export default function ServicePackageScreen({ navigation }) {
         renderItem={renderPackage}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
         style={styles.flatList}
       />
@@ -641,7 +663,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0,height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
@@ -682,17 +704,6 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
     fontWeight: "500",
   },
-  bannerButton: {
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  bannerButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#667eea",
-  },
 
   // Package Cards
   flatList: {
@@ -710,7 +721,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0,height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
@@ -790,19 +801,23 @@ const styles = StyleSheet.create({
   },
   priceContainer: {
     flexDirection: "row",
-    alignItems: "baseline",
-    marginBottom: 8,
+    alignItems: "center",
+    marginBottom: 12,
+    backgroundColor: "#EFF6FF",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10
   },
   price: {
-    fontSize: 12,
+    fontSize: 24,
     fontWeight: "800",
-    color: "#3B82F6",
-    marginRight: 4,
+    color: "#1E3A8A",
+    marginRight: 6,
   },
   duration: {
-    fontSize: 14,
+    fontSize: 16,
     color: "#64748B",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   description: {
     fontSize: 14,
@@ -956,16 +971,9 @@ const styles = StyleSheet.create({
 
   // Loading & Empty States
   loadingContainer: {
-    flex: 1,
+    paddingVertical: 20,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#3B82F6",
-    marginTop: 12,
-    fontWeight: "500",
   },
   emptyContainer: {
     flex: 1,
@@ -1030,14 +1038,20 @@ const styles = StyleSheet.create({
   },
   priceInput: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    fontWeight: "600",
     color: "#1E293B",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderWidth: 2,
+    borderColor: "#3B82F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0,height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   priceSeparator: {
     fontSize: 16,

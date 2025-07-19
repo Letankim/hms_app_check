@@ -29,6 +29,7 @@ import { apiUploadImageCloudService } from "services/apiUploadImageCloudService"
 import { Linking } from "react-native";
 import { showErrorFetchAPI,showErrorMessage,showSuccessMessage } from "utils/toastUtil";
 import { RichEditor,RichToolbar,actions } from "react-native-pell-rich-editor";
+import apiUserService from "services/apiUserService";
 
 const { width,height } = Dimensions.get("window");
 
@@ -149,7 +150,9 @@ const CreatePostScreen = ({ route,navigation }) => {
     try {
       const userStr = await AsyncStorage.getItem("user");
       if (userStr) {
-        setCurrentUser(JSON.parse(userStr));
+        const userJoin = JSON.parse(userStr);
+        const userRes = await apiUserService.getUserById(userJoin?.userId);
+        setCurrentUser(userRes?.data);
       }
       const tagsData = await getAllTags();
       setTags(tagsData || []);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState,useEffect,useRef,useContext } from "react";
 import {
     View,
     Text,
@@ -8,29 +8,37 @@ import {
     Animated,
     Platform,
     Dimensions,
-    Share
-
+    Share,
+    Modal
 } from "react-native";
-import { showErrorFetchAPI, showSuccessMessage } from "utils/toastUtil";
-import Loading from "components/Loading";
+import { showErrorFetchAPI,showSuccessMessage } from "utils/toastUtil";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons,MaterialCommunityIcons } from "@expo/vector-icons";
 import Header from "components/Header";
 import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
 import apiTrainerService from "services/apiTrainerService";
 import { Image } from "react-native";
 import { theme } from "theme/color";
-import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Notifications from 'expo-notifications';
+import { AuthContext } from "context/AuthContext";
+import apiChatSupportService from "services/apiChatSupport";
+import { ActivityIndicator } from "react-native-paper";
 
 const { width } = Dimensions.get("window");
 
-const SubscriptionDetailScreen = ({ route, navigation }) => {
+const SubscriptionDetailScreen = ({ route,navigation }) => {
+    const { user } = useContext(AuthContext);
     const { subscription } = route.params;
-    const [loading, setLoading] = useState(false);
-    const [showActions, setShowActions] = useState(false);
-    const [trainerRatingData, setTrainerRatingData] = useState(null);
-    const [trainerExperience, setTrainerExperience] = useState(null);
+    const [loading,setLoading] = useState(false);
+    const [showActions,setShowActions] = useState(false);
+    const [trainerRatingData,setTrainerRatingData] = useState(null);
+    const [trainerExperience,setTrainerExperience] = useState(null);
+    const [incomingCall,setIncomingCall] = useState(null);
+    const [showCallWaitingPopup,setShowCallWaitingPopup] = useState(false);
+    const [currentRoomId,setCurrentRoomId] = useState(null);
+    const notificationListener = useRef();
+    const responseListener = useRef();
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
@@ -54,26 +62,25 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
 
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(fadeAnim, {
+            Animated.timing(fadeAnim,{
                 toValue: 1,
                 duration: 800,
                 useNativeDriver: true,
             }),
-            Animated.timing(slideAnim, {
+            Animated.timing(slideAnim,{
                 toValue: 0,
                 duration: 800,
                 useNativeDriver: true,
             }),
-            Animated.spring(scaleAnim, {
+            Animated.spring(scaleAnim,{
                 toValue: 1,
                 tension: 100,
                 friction: 8,
                 useNativeDriver: true,
             }),
         ]).start();
-    }, []);
+    },[]);
 
-    // Fetch trainer rating and experience (like PackageDetailScreen)
     useEffect(() => {
         const fetchTrainerData = async () => {
             if (!subscription?.trainerId) return;
@@ -88,7 +95,46 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
             }
         };
         fetchTrainerData();
-    }, [subscription?.trainerId]);
+    },[subscription?.trainerId]);
+
+    useEffect(() => {
+        notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+            const data = notification.request.content.data;
+            console.log('🔔 Nhận được thông báo ở detail:',data);
+
+            if (data.type === 'call-incoming' && data.roomId) {
+                setIncomingCall({
+                    roomId: data.roomId,
+                    callerName: data.callerName || 'Người gọi không xác định',
+                });
+            } else if (data.type === 'call-accepted' && data.roomId && data.roomId === currentRoomId) {
+                setShowCallWaitingPopup(false);
+                setCurrentRoomId(null);
+                navigation.navigate('VideoCallSupport',{ roomId: data.roomId });
+            } else if (data.type === 'call-rejected' && data.roomId && data.roomId === currentRoomId) {
+                setShowCallWaitingPopup(false);
+                setCurrentRoomId(null);
+                showErrorFetchAPI(`Call was rejected by ${data.rejectorId}`);
+            }
+        });
+
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+            console.log('📲 User nhấn vào thông báo:',JSON.stringify(response,null,2));
+            const data = response.notification.request.content.data;
+            if (data.type === 'call-incoming' && data.roomId) {
+                navigation.navigate('VideoCallSupport',{ roomId: data.roomId });
+            }
+        });
+
+        return () => {
+            if (notificationListener.current) {
+                Notifications.removeNotificationSubscription(notificationListener.current);
+            }
+            if (responseListener.current) {
+                Notifications.removeNotificationSubscription(responseListener.current);
+            }
+        };
+    },[navigation,currentRoomId]);
 
     const getStatusInfo = (status) => {
         switch (status?.toLowerCase()) {
@@ -147,10 +193,8 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
         const startDate = new Date(subscription.startDate);
         const endDate = new Date(subscription.endDate);
         const currentDate = new Date();
-
         const totalDuration = endDate - startDate;
         const elapsed = currentDate - startDate;
-
         return Math.min(100,Math.max(0,(elapsed / totalDuration) * 100));
     };
 
@@ -173,8 +217,45 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
         }
     };
 
-    const handleContactTrainer = () => {
-        showSuccessMessage("Messaging and calling features will be available soon!");
+    const handleContactTrainer = async () => {
+        try {
+            setLoading(true);
+            if (!user?.userId) {
+                throw new Error('User data not found');
+            }
+            const response = await apiChatSupportService.createCallRoom({
+                userId: user.userId,
+                trainerId: subscription.trainerId
+            });
+            console.log('Create call room response:',response);
+            if (response.statusCode === 200 && response.data) {
+                setCurrentRoomId(response.data.roomId);
+                setShowCallWaitingPopup(true);
+                showSuccessMessage("Call request sent to trainer. Waiting for response...");
+            } else {
+                throw new Error(response.message || 'Failed to create call room');
+            }
+        } catch (error) {
+            console.log('Error initiating call:',error);
+            showErrorFetchAPI(error.message || 'Failed to initiate call with trainer');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCancelCall = async () => {
+        try {
+            if (!currentRoomId || !user?.userId) return;
+            await apiChatSupportService.rejectCall({
+                roomId: currentRoomId,
+                rejectorId: user.userId
+            });
+            setShowCallWaitingPopup(false);
+            setCurrentRoomId(null);
+            showSuccessMessage("Call request cancelled");
+        } catch (error) {
+            showErrorFetchAPI("Failed to cancel call request");
+        }
     };
 
     const handleRenewSubscription = () => {
@@ -192,11 +273,20 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
         showSuccessMessage("Cancellation feature will be available soon!");
     };
 
+    const handleCompletePayment = () => {
+        navigation.navigate("QRPaymentScreen",{
+            amount: subscription.packagePrice || 0,
+            packageName: subscription.packageName,
+            paymentUrl: subscription.paymentUrl,
+        });
+    };
+
     const statusInfo = getStatusInfo(subscription.status);
     const progress = calculateProgress();
     const daysRemaining = getDaysRemaining();
     const isExpired = new Date(subscription.endDate) < new Date();
     const isActive = subscription.status?.toLowerCase() === "active";
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <DynamicStatusBar backgroundColor="#FFFFFF" />
@@ -212,18 +302,39 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                     color: "#2D3748"
                 }]}
             />
-            <ScrollView style={[styles.container, { marginTop: 55 }]} showsVerticalScrollIndicator={false}>
-                {/* Hero Section (unchanged) */}
+            {loading && (
+                <View style={{ flex: 1,justifyContent: 'center',alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={theme.secondaryColor} />
+                </View>
+            )}
+            <Modal
+                visible={showCallWaitingPopup}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={handleCancelCall}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.popupContainer}>
+                        <Ionicons name="call-outline" size={40} color={theme.secondaryColor} style={styles.popupIcon} />
+                        <Text style={styles.popupText}>Waiting for trainer response...</Text>
+                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancelCall}>
+                            <Text style={styles.cancelButtonText}>Cancel Call</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+            <ScrollView style={[styles.container,{ marginTop: 55 }]} showsVerticalScrollIndicator={false}>
+                {/* Hero Section */}
                 <Animated.View
                     style={[
                         styles.heroSection,
                         {
                             opacity: fadeAnim,
-                            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+                            transform: [{ translateY: slideAnim },{ scale: scaleAnim }],
                         },
                     ]}
                 >
-                    <LinearGradient colors={[theme.backgroundColor, theme.lightBackground]} style={styles.heroGradient}>
+                    <LinearGradient colors={[theme.backgroundColor,theme.lightBackground]} style={styles.heroGradient}>
                         <View style={styles.heroHeader}>
                             <View style={styles.packageIconContainer}>
                                 <MaterialCommunityIcons name="package-variant" size={32} color="#0056d2" />
@@ -232,9 +343,9 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                                 <Text style={styles.packageName}>{subscription.packageName || "Fitness Package"}</Text>
                                 <Text style={styles.trainerName}>with {subscription.trainerFullName || "Professional Trainer"}</Text>
                             </View>
-                            <View style={[styles.statusBadge, { backgroundColor: statusInfo.bgColor }]}> 
+                            <View style={[styles.statusBadge,{ backgroundColor: statusInfo.bgColor }]}>
                                 <Ionicons name={statusInfo.icon} size={16} color={statusInfo.color} />
-                                <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+                                <Text style={[styles.statusText,{ color: statusInfo.color }]}>{statusInfo.label}</Text>
                             </View>
                         </View>
                         <Text style={styles.statusDescription}>{statusInfo.description}</Text>
@@ -246,7 +357,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                                 </View>
                                 <View style={styles.progressBarContainer}>
                                     <View style={styles.progressBar}>
-                                        <Animated.View style={[styles.progressFill, { width: `${progress}%` }]} />
+                                        <Animated.View style={[styles.progressFill,{ width: `${progress}%` }]} />
                                     </View>
                                 </View>
                                 <View style={styles.progressInfo}>
@@ -259,7 +370,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                     </LinearGradient>
                 </Animated.View>
 
-                {/* Package Info Section (unchanged) */}
+                {/* Package Info Section */}
                 <Animated.View
                     style={[
                         styles.infoSection,
@@ -296,7 +407,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             <View style={styles.infoContent}>
                                 <Text style={styles.infoLabel}>Start Date</Text>
                                 <Text style={styles.infoValue}>
-                                    {new Date(subscription.startDate).toLocaleDateString("en-US", {
+                                    {new Date(subscription.startDate).toLocaleDateString("en-US",{
                                         month: "short",
                                         day: "numeric",
                                         year: "numeric",
@@ -310,8 +421,8 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             </View>
                             <View style={styles.infoContent}>
                                 <Text style={styles.infoLabel}>End Date</Text>
-                                <Text style={[styles.infoValue, isExpired && styles.expiredText]}>
-                                    {new Date(subscription.endDate).toLocaleDateString("en-US", {
+                                <Text style={[styles.infoValue,isExpired && styles.expiredText]}>
+                                    {new Date(subscription.endDate).toLocaleDateString("en-US",{
                                         month: "short",
                                         day: "numeric",
                                         year: "numeric",
@@ -322,7 +433,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                     </View>
                 </Animated.View>
 
-                {/* Your Trainer Section (fetches real data) */}
+                {/* Your Trainer Section */}
                 <Animated.View
                     style={[
                         styles.trainerSection,
@@ -332,9 +443,9 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                         },
                     ]}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                    <View style={{ flexDirection: 'row',alignItems: 'center',marginBottom: 12,gap: 8 }}>
                         <Ionicons name="person-outline" size={24} color="#0056d2" />
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937' }}>Your Trainer</Text>
+                        <Text style={{ fontSize: 16,fontWeight: '700',color: '#1F2937' }}>Your Trainer</Text>
                     </View>
                     <TouchableOpacity
                         activeOpacity={0.85}
@@ -345,7 +456,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             alignItems: 'center',
                             padding: 18,
                             shadowColor: '#0056d2',
-                            shadowOffset: { width: 0, height: 4 },
+                            shadowOffset: { width: 0,height: 4 },
                             shadowOpacity: 0.10,
                             shadowRadius: 12,
                             elevation: 4,
@@ -355,25 +466,25 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                         }}
                         onPress={() => {
                             if (subscription?.trainerId) {
-                                navigation.navigate('TrainerDetailScreen', { trainerId: subscription.trainerId });
+                                navigation.navigate('TrainerDetailScreen',{ trainerId: subscription.trainerId });
                             }
                         }}
                     >
-                        <View style={{ width: 64, height: 64, borderRadius: 32, marginRight: 18, overflow: 'hidden', backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 64,height: 64,borderRadius: 32,marginRight: 18,overflow: 'hidden',backgroundColor: '#EEF2FF',alignItems: 'center',justifyContent: 'center' }}>
                             {subscription.trainerAvatar ? (
-                                <Image source={{ uri: subscription.trainerAvatar }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                                <Image source={{ uri: subscription.trainerAvatar }} style={{ width: 64,height: 64,borderRadius: 32 }} />
                             ) : (
                                 <Ionicons name="person" size={32} color="#94A3B8" />
                             )}
-                            <View style={{ position: 'absolute', bottom: 4, right: 4, width: 16, height: 16, borderRadius: 8, backgroundColor: '#10B981', borderWidth: 2, borderColor: '#FFFFFF' }} />
+                            <View style={{ position: 'absolute',bottom: 4,right: 4,width: 16,height: 16,borderRadius: 8,backgroundColor: '#10B981',borderWidth: 2,borderColor: '#FFFFFF' }} />
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: '#1F2937', marginBottom: 2 }}>{subscription.trainerFullName || 'Professional Trainer'}</Text>
-                            <Text style={{ fontSize: 14, color: '#64748B', marginBottom: 6 }}>Certified Fitness Coach</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Text style={{ fontSize: 14,fontWeight: '700',color: '#1F2937',marginBottom: 2 }}>{subscription.trainerFullName || 'Professional Trainer'}</Text>
+                            <Text style={{ fontSize: 14,color: '#64748B',marginBottom: 6 }}>Certified Fitness Coach</Text>
+                            <View style={{ flexDirection: 'row',alignItems: 'center',gap: 10 }}>
+                                <View style={{ flexDirection: 'row',alignItems: 'center',gap: 3 }}>
                                     <Ionicons name="star" size={12} color="#F59E0B" />
-                                    <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+                                    <Text style={{ fontSize: 12,color: '#64748B',fontWeight: '600' }}>
                                         {trainerRatingData && typeof trainerRatingData === 'object' && typeof trainerRatingData.averageRating === 'number' && !isNaN(trainerRatingData.averageRating)
                                             ? trainerRatingData.averageRating.toFixed(1)
                                             : typeof trainerRatingData === 'number' && !isNaN(trainerRatingData)
@@ -381,19 +492,19 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                                                 : '0.0'}
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, height: 14, backgroundColor: '#E2E8F0', marginHorizontal: 5 }} />
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <View style={{ width: 1,height: 14,backgroundColor: '#E2E8F0',marginHorizontal: 5 }} />
+                                <View style={{ flexDirection: 'row',alignItems: 'center',gap: 3 }}>
                                     <Ionicons name="people-outline" size={12} color="#64748B" />
-                                    <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+                                    <Text style={{ fontSize: 12,color: '#64748B',fontWeight: '600' }}>
                                         {trainerRatingData && trainerRatingData.currentSubscribers !== null
                                             ? trainerRatingData.currentSubscribers
                                             : '0'} clients
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, height: 14, backgroundColor: '#E2E8F0', marginHorizontal: 5 }} />
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <View style={{ width: 1,height: 14,backgroundColor: '#E2E8F0',marginHorizontal: 5 }} />
+                                <View style={{ flexDirection: 'row',alignItems: 'center',gap: 3 }}>
                                     <Ionicons name="time-outline" size={12} color="#10B981" />
-                                    <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+                                    <Text style={{ fontSize: 12,color: '#64748B',fontWeight: '600' }}>
                                         {trainerExperience && trainerExperience.experienceYears !== null
                                             ? trainerExperience.experienceYears
                                             : '0'} yrs
@@ -405,7 +516,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                 </Animated.View>
 
-                {/* Timeline and Actions (unchanged) */}
+                {/* Timeline and Actions */}
                 <Animated.View
                     style={[
                         styles.timelineSection,
@@ -418,13 +529,13 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                     <Text style={styles.sectionTitle}>Subscription Timeline</Text>
                     <View style={styles.timeline}>
                         <View style={styles.timelineItem}>
-                            <View style={[styles.timelineIcon, { backgroundColor: "#D1FAE5" }]}> 
+                            <View style={[styles.timelineIcon,{ backgroundColor: "#D1FAE5" }]}>
                                 <Ionicons name="calendar" size={16} color={theme.successColor} />
                             </View>
                             <View style={styles.timelineContent}>
                                 <Text style={styles.timelineTitle}>Subscription Created</Text>
                                 <Text style={styles.timelineDate}>
-                                    {new Date(subscription.createdAt).toLocaleDateString("en-US", {
+                                    {new Date(subscription.createdAt).toLocaleDateString("en-US",{
                                         weekday: "long",
                                         year: "numeric",
                                         month: "long",
@@ -434,13 +545,13 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             </View>
                         </View>
                         <View style={styles.timelineItem}>
-                            <View style={[styles.timelineIcon, { backgroundColor: "#A7F3D0" }]}> 
+                            <View style={[styles.timelineIcon,{ backgroundColor: "#A7F3D0" }]}>
                                 <Ionicons name="play" size={16} color="#059669" />
                             </View>
                             <View style={styles.timelineContent}>
                                 <Text style={styles.timelineTitle}>Subscription Started</Text>
                                 <Text style={styles.timelineDate}>
-                                    {new Date(subscription.startDate).toLocaleDateString("en-US", {
+                                    {new Date(subscription.startDate).toLocaleDateString("en-US",{
                                         weekday: "long",
                                         year: "numeric",
                                         month: "long",
@@ -450,13 +561,13 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             </View>
                         </View>
                         <View style={styles.timelineItem}>
-                            <View style={[styles.timelineIcon, { backgroundColor: isExpired ? "#FEE2E2" : "#FEF3C7" }]}> 
+                            <View style={[styles.timelineIcon,{ backgroundColor: isExpired ? "#FEE2E2" : "#FEF3C7" }]}>
                                 <Ionicons name={isExpired ? "stop" : "flag"} size={16} color={isExpired ? theme.dangerColor : theme.warningColor} />
                             </View>
                             <View style={styles.timelineContent}>
                                 <Text style={styles.timelineTitle}>{isExpired ? "Subscription Ended" : "Subscription Ends"}</Text>
-                                <Text style={[styles.timelineDate, isExpired && styles.expiredText]}>
-                                    {new Date(subscription.endDate).toLocaleDateString("en-US", {
+                                <Text style={[styles.timelineDate,isExpired && styles.expiredText]}>
+                                    {new Date(subscription.endDate).toLocaleDateString("en-US",{
                                         weekday: "long",
                                         year: "numeric",
                                         month: "long",
@@ -477,6 +588,12 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                         },
                     ]}
                 >
+                    {subscription.status?.toLowerCase() === "pending" && (
+                        <TouchableOpacity style={styles.completePaymentButton} onPress={handleCompletePayment}>
+                            <Ionicons name="card" size={20} color="#059669" />
+                            <Text style={styles.completePaymentButtonText}>Complete Payment</Text>
+                        </TouchableOpacity>
+                    )}
                     {isActive && (
                         <TouchableOpacity style={styles.primaryButton} onPress={handleRenewSubscription}>
                             <Ionicons name="refresh" size={20} color={theme.primaryColor} />
@@ -489,7 +606,7 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
                             <Text style={styles.dangerButtonText}>Cancel Subscription</Text>
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={styles.secondaryButton} onPress={handleContactTrainer}>
+                    <TouchableOpacity style={styles.secondaryButton} onPress={handleContactTrainer} disabled={showCallWaitingPopup}>
                         <Ionicons name="chatbubble-outline" size={20} color={theme.secondaryColor} />
                         <Text style={styles.secondaryButtonText}>Contact Trainer</Text>
                     </TouchableOpacity>
@@ -499,55 +616,12 @@ const SubscriptionDetailScreen = ({ route, navigation }) => {
             </ScrollView>
         </SafeAreaView>
     );
-}
+};
 
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: theme.primaryColor,
-    },
-    header: {
-        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 10,
-        paddingBottom: 10,
-        paddingHorizontal: 16,
-    },
-    headerContent: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    headerCenter: {
-        flex: 1,
-        alignItems: "center",
-        marginHorizontal: 16,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: theme.primaryColor,
-        textAlign: "center",
-    },
-    headerSubtitle: {
-        fontSize: 11,
-        color: "rgba(255, 255, 255, 0.8)",
-        textAlign: "center",
-        marginTop: 2,
-    },
-    shareButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
-        justifyContent: "center",
-        alignItems: "center",
     },
     container: {
         flex: 1,
@@ -716,57 +790,6 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginBottom: 16,
     },
-    trainerCard: {
-        backgroundColor: theme.backgroundColor,
-        borderRadius: 16,
-        padding: 20,
-        flexDirection: "row",
-        alignItems: "center",
-        shadowColor: theme.textPrimary,
-        shadowOffset: { width: 0,height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    trainerAvatar: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: "#EEF2FF",
-        justifyContent: "center",
-        alignItems: "center",
-        marginRight: 16,
-    },
-    trainerInfo: {
-        flex: 1,
-    },
-    trainerTitle: {
-        fontSize: 11,
-        color: theme.textSecondary,
-        marginBottom: 8,
-    },
-    trainerStats: {
-        flexDirection: "row",
-        gap: 16,
-    },
-    trainerStat: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-    },
-    trainerStatText: {
-        fontSize: 10,
-        color: theme.textSecondary,
-        fontWeight: "500",
-    },
-    contactButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: "#EEF2FF",
-        justifyContent: "center",
-        alignItems: "center",
-    },
     timelineSection: {
         marginHorizontal: 16,
         marginBottom: 16,
@@ -861,8 +884,66 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: theme.primaryColor,
     },
+    completePaymentButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#A7F3D0",
+        borderRadius: 16,
+        paddingVertical: 16,
+        gap: 8,
+        shadowColor: "#059669",
+        shadowOffset: { width: 0,height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    completePaymentButtonText: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#059669",
+    },
     bottomSpacing: {
         height: 40,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    popupContainer: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 24,
+        alignItems: 'center',
+        width: width * 0.8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0,height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    popupIcon: {
+        marginBottom: 16,
+    },
+    popupText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: theme.textPrimary,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    cancelButton: {
+        backgroundColor: theme.dangerColor,
+        borderRadius: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+    },
+    cancelButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });
 

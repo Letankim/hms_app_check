@@ -53,6 +53,8 @@ const { width,height } = Dimensions.get("window");
 
 import { getActivePostByIdForUser } from "services/apiCommunityService";
 import { showErrorFetchAPI,showErrorMessage,showSuccessMessage,showWarningMessage } from "utils/toastUtil";
+import GroupHeader from "./GroupHeader";
+import PostImage from "./PostImage";
 
 const GroupDetailsScreen = ({ route }) => {
   const navigation = useNavigation();
@@ -216,6 +218,17 @@ const GroupDetailsScreen = ({ route }) => {
       });
     }
   };
+
+  const getImageSize = (uri) => {
+    return new Promise((resolve,reject) => {
+      Image.getSize(
+        uri,
+        (width,height) => resolve({ width,height }),
+        (error) => reject(error)
+      );
+    });
+  };
+
 
   const closeReactionPicker = () => {
     setShowReactionPicker(false);
@@ -1156,36 +1169,20 @@ View now: ${url}`;
               },
             ]}
           >
-            <View style={styles.coverSection}>
-              <Image
-                source={{ uri: group.thumbnail || "https://via.placeholder.com/400x200" }}
-                style={styles.coverImage}
-                blurRadius={2}
-              />
-              <LinearGradient
-                colors={["rgba(15, 125, 228, 0.3)","rgba(11, 135, 236, 0.7)"]}
-                style={styles.coverOverlay}
-              />
-              <View style={styles.headerActions}>
-                <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                  <Ionicons name="arrow-back" size={24} color="#0056d2" />
-                </TouchableOpacity>
-                <View style={styles.headerRightActions}></View>
-              </View>
-              <View style={styles.groupAvatarContainer}>
-                <View style={styles.groupAvatarWrapper}>
-                  <Image
-                    source={{ uri: group.avatarUser || group.thumbnail || "https://via.placeholder.com/120" }}
-                    style={styles.groupAvatar}
-                  />
-                  {group.isPrivate && (
-                    <View style={styles.privateBadge}>
-                      <Ionicons name="lock-closed" size={16} color="#FFFFFF" />
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
+            <GroupHeader
+              navigation={navigation}
+              group={{
+                id: groupId,
+                thumbnail: group.thumbnail,
+                avatarUser: group.thumbnail,
+                isPrivate: group?.isPrivate,
+                isJoin: group?.isJoin,
+                isRequested: group?.isRequested,
+              }}
+              isOwner={isOwner}
+              joining={joining}
+              handleJoinOrDelete={() => handleJoinOrDelete()}
+            />
 
             <View style={styles.groupInfoSection}>
               <View style={styles.groupHeader}>
@@ -1283,63 +1280,6 @@ View now: ${url}`;
                   </View>
                 </View>
               </View>
-
-              <View style={styles.actionButtonsContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionButton,
-                    isOwner
-                      ? styles.deleteButton
-                      : group.isJoin
-                        ? styles.leaveButton
-                        : group.isRequested
-                          ? styles.pendingButton
-                          : styles.joinButton,
-                  ]}
-                  onPress={handleJoinOrDelete}
-                  disabled={group.isRequested || joining}
-                  activeOpacity={0.8}
-                  accessibilityLabel={
-                    isOwner
-                      ? "Delete this group"
-                      : group.isJoin
-                        ? "Leave this group"
-                        : group.isRequested
-                          ? "Request pending"
-                          : "Join this group"
-                  }
-                  accessibilityHint={isOwner ? "Deletes the group permanently. This action cannot be undone." : undefined}
-                >
-                  {joining ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name={
-                          isOwner
-                            ? "trash-outline"
-                            : group.isJoin
-                              ? "exit-outline"
-                              : group.isRequested
-                                ? "time-outline"
-                                : "add-outline"
-                        }
-                        size={18}
-                        color="#FFFFFF"
-                      />
-                      <Text style={styles.primaryActionText}>
-                        {isOwner
-                          ? "Delete Group"
-                          : group.isJoin
-                            ? "Leave Group"
-                            : group.isRequested
-                              ? "Request Pending"
-                              : "Join Group"}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
             </View>
 
             {(group.isJoin || isOwner) && (
@@ -1362,7 +1302,6 @@ View now: ${url}`;
                 >
                   <View style={styles.createPostAvatar}>
                     <Image source={{ uri: avatarUrl }} style={styles.createPostAvatarImg} />
-                    {/* <Text style={styles.createPostAvatarText}>T</Text> */}
                   </View>
                   <Text style={styles.createPostPlaceholder}>What's on your mind?</Text>
                   <View style={styles.createPostActions}>
@@ -1563,7 +1502,7 @@ View now: ${url}`;
                 </View>
                 {post.thumbnail && post.thumbnail !== "DEFAULT_IMAGE" && (
                   <TouchableOpacity style={styles.postImageContainer}>
-                    <Image source={{ uri: post.thumbnail }} style={styles.postImage} />
+                    <PostImage uri={post.thumbnail} post={post} />
                   </TouchableOpacity>
                 )}
                 {post.tags && post.tags.length > 0 && (
@@ -1867,9 +1806,31 @@ View now: ${url}`;
                 <Text style={styles.joinRequiredSubtitle}>
                   You need to join this group to view and interact with posts
                 </Text>
-                <TouchableOpacity style={styles.joinRequiredAction} onPress={handleJoinOrDelete}>
-                  <Ionicons name="add" size={16} color="#FFFFFF" />
-                  <Text style={styles.joinRequiredActionText}>Join Group</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.joinRequiredAction,
+                    group.isRequested || joining ? styles.pendingButton : styles.joinButton,
+                  ]}
+                  onPress={handleJoinOrDelete}
+                  disabled={group.isRequested || joining}
+                  activeOpacity={0.8}
+                  accessibilityLabel={group.isRequested ? "Request pending" : "Join this group"}
+                  accessibilityHint={group.isRequested ? "Your join request is pending approval." : "Sends a request to join the group."}
+                >
+                  {joining ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={group.isRequested ? "time-outline" : "add"}
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.joinRequiredActionText}>
+                        {group.isRequested ? "Request Pending" : "Join Group"}
+                      </Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -2634,7 +2595,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 24,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
@@ -2929,11 +2889,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
   },
-  postImage: {
-    width: "100%",
-    height: 200,
-    resizeMode: "cover",
-  },
+
   tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",

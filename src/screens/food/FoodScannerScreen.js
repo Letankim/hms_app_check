@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState,useRef,useEffect } from "react";
 import {
     View,
     Text,
@@ -8,58 +8,69 @@ import {
     Platform,
     Dimensions,
     Animated,
-    Alert,
     Image,
     ScrollView,
     ActivityIndicator,
     Linking,
-} from "react-native"
-import { showErrorFetchAPI, showSuccessMessage } from "utils/toastUtil"
-import { Ionicons } from "@expo/vector-icons"
-import { CameraView,CameraType,useCameraPermissions } from 'expo-camera';
-
-import { LinearGradient } from "expo-linear-gradient"
-import * as ImagePicker from "expo-image-picker"
+    Modal,
+    TextInput,
+    FlatList,
+} from "react-native";
+import { showErrorFetchAPI,showSuccessMessage } from "utils/toastUtil";
+import { Ionicons } from "@expo/vector-icons";
+import { CameraView,CameraType,useCameraPermissions } from "expo-camera";
+import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import ViewShot from "react-native-view-shot";
 import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
 import { theme } from "theme/color";
 import { StatusBar } from "expo-status-bar";
-import Loading from "components/Loading"
+import Loading from "components/Loading";
+import { getMyGroupFilter } from "services/apiCommunityService";
+import RenderHTML from "react-native-render-html";
 
-const { width,height } = Dimensions.get("window")
+const { width,height } = Dimensions.get("window");
 
 export default function FoodScannerScreen({ navigation }) {
-    const [hasPermission,setHasPermission] = useState(null)
-    const [facing,setFacing] = useState("back")
-    const [permission,requestPermission] = useCameraPermissions()
-    const [capturedImage,setCapturedImage] = useState(null)
-    const [isAnalyzing,setIsAnalyzing] = useState(false)
-    const [analysisResult,setAnalysisResult] = useState(null)
-    const [showResults,setShowResults] = useState(false)
+    const [hasPermission,setHasPermission] = useState(null);
+    const [facing,setFacing] = useState("back");
+    const [permission,requestPermission] = useCameraPermissions();
+    const [capturedImage,setCapturedImage] = useState(null);
+    const [isAnalyzing,setIsAnalyzing] = useState(false);
+    const [analysisResult,setAnalysisResult] = useState(null);
+    const [showResults,setShowResults] = useState(false);
+    const [showGroupModal,setShowGroupModal] = useState(false);
+    const [groups,setGroups] = useState([]);
+    const [selectedGroup,setSelectedGroup] = useState(null);
+    const [searchTerm,setSearchTerm] = useState("");
+    const [allGroups,setAllGroups] = useState([]);
 
-    const cameraRef = useRef(null)
-    const fadeAnim = useRef(new Animated.Value(0)).current
-    const slideAnim = useRef(new Animated.Value(50)).current
-    const scaleAnim = useRef(new Animated.Value(0.8)).current
 
-    const [scrollY,setScrollY] = useState(0)
+    const cameraRef = useRef(null);
+    const viewShotRef = useRef(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
+    const [scrollY,setScrollY] = useState(0);
 
     const handleScroll = (event) => {
-        const offsetY = event.nativeEvent.contentOffset.y
-        setScrollY(offsetY)
-    }
+        const offsetY = event.nativeEvent.contentOffset.y;
+        setScrollY(offsetY);
+    };
 
     const flipCamera = () => {
-        setFacing(facing === "back" ? "front" : "back")
-    }
+        setFacing(facing === "back" ? "front" : "back");
+    };
 
     useEffect(() => {
-        ; (async () => {
+        (async () => {
             if (!permission) {
-                await requestPermission()
+                await requestPermission();
             }
-            setHasPermission(permission?.granted)
-        })()
-    },[permission])
+            setHasPermission(permission?.granted);
+        })();
+    },[permission]);
 
     useEffect(() => {
         if (showResults) {
@@ -79,9 +90,9 @@ export default function FoodScannerScreen({ navigation }) {
                     duration: 600,
                     useNativeDriver: true,
                 }),
-            ]).start()
+            ]).start();
         }
-    },[showResults])
+    },[showResults]);
 
     const takePicture = async () => {
         if (cameraRef.current) {
@@ -89,43 +100,42 @@ export default function FoodScannerScreen({ navigation }) {
                 const photo = await cameraRef.current.takePictureAsync({
                     quality: 0.8,
                     base64: false,
-                })
-                setCapturedImage(photo.uri)
-                setIsAnalyzing(true)
+                });
+                setCapturedImage(photo.uri);
+                setIsAnalyzing(true);
                 setTimeout(() => {
-                    setIsAnalyzing(false)
-                    setAnalysisResult(generateFakeNutritionData())
-                    setShowResults(true)
-                },2500)
+                    setIsAnalyzing(false);
+                    setAnalysisResult(generateFakeNutritionData());
+                    setShowResults(true);
+                },2500);
             } catch (error) {
-            showErrorFetchAPI(error)
+                showErrorFetchAPI(error);
             }
         }
-    }
+    };
 
     const pickImageFromGallery = async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: [ImagePicker.MediaType.images],
                 allowsEditing: true,
                 aspect: [4,3],
                 quality: 0.8,
-            })
+            });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                setCapturedImage(result.assets[0].uri)
-                setIsAnalyzing(true)
-
+                setCapturedImage(result.assets[0].uri);
+                setIsAnalyzing(true);
                 setTimeout(() => {
-                    setIsAnalyzing(false)
-                    setAnalysisResult(generateFakeNutritionData())
-                    setShowResults(true)
-                },2500)
+                    setIsAnalyzing(false);
+                    setAnalysisResult(generateFakeNutritionData());
+                    setShowResults(true);
+                },2500);
             }
         } catch (error) {
-            showErrorFetchAPI(error)
+            showErrorFetchAPI(error);
         }
-    }
+    };
 
     const generateFakeNutritionData = () => {
         const foodItems = [
@@ -171,38 +181,109 @@ export default function FoodScannerScreen({ navigation }) {
                     { name: "Sesame seeds",calories: 52,weight: "10g",emoji: "🌰" },
                 ],
             },
-        ]
-        return foodItems[Math.floor(Math.random() * foodItems.length)]
-    }
+        ];
+        return foodItems[Math.floor(Math.random() * foodItems.length)];
+    };
 
     const retakePhoto = () => {
-        setCapturedImage(null)
-        setAnalysisResult(null)
-        setShowResults(false)
-        fadeAnim.setValue(0)
-        slideAnim.setValue(50)
-        scaleAnim.setValue(0.8)
-    }
+        setCapturedImage(null);
+        setAnalysisResult(null);
+        setShowResults(false);
+        setShowGroupModal(false);
+        setSelectedGroup(null);
+        setSearchTerm("");
+        fadeAnim.setValue(0);
+        slideAnim.setValue(50);
+        scaleAnim.setValue(0.8);
+    };
 
-    const shareToFeed = () => {
-        showSuccessMessage("Your meal has been shared to your health feed!")
-        navigation.goBack()
-    }
+    const fetchGroups = async () => {
+        try {
+            const response = await getMyGroupFilter();
+            const groupData = response.data.groups || [];
+            setAllGroups(groupData);
+            setGroups(groupData);
+        } catch (error) {
+            showErrorFetchAPI(error);
+        }
+    };
 
-    const viewDetails = () => {
-        showSuccessMessage(`Detailed nutrition information for ${analysisResult?.name}. (Macro/micronutrient breakdown coming soon!)`)
-    }
+    const handleSharePress = () => {
+        fetchGroups();
+        setShowGroupModal(true);
+    };
+
+    const handleGroupSelect = (group) => {
+        setSelectedGroup(group);
+    };
+
+    const removeVietnameseTones = (str) => {
+        return str
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g,"")
+            .replace(/đ/g,"d")
+            .replace(/Đ/g,"D");
+    };
+
+    const handleSearch = (text) => {
+        setSearchTerm(text);
+
+        const search = removeVietnameseTones(text.toLowerCase());
+
+        const filtered = allGroups.filter((group) => {
+            const name = removeVietnameseTones(group.groupName.toLowerCase());
+            return name.includes(search);
+        });
+
+        setGroups(filtered);
+    };
+
+
+    const shareToFeed = async () => {
+        if (!selectedGroup) {
+            showErrorFetchAPI("Please select a group to share to.");
+            return;
+        }
+        try {
+            if (viewShotRef.current) {
+                const cacheDir = FileSystem.cacheDirectory + "screenshots/";
+                await FileSystem.makeDirectoryAsync(cacheDir,{ intermediates: true });
+                const timestamp = new Date().getTime();
+                const cachePath = `${cacheDir}screenshot_${timestamp}.png`;
+                const uri = await viewShotRef.current.capture();
+                await FileSystem.copyAsync({
+                    from: uri,
+                    to: cachePath,
+                });
+                navigation.navigate("CreatePostFromScreenshotScreen",{
+                    screenshotUri: cachePath,
+                    groupId: selectedGroup.groupId,
+                });
+                showSuccessMessage("Screenshot captured and navigating to PostScreen!");
+                setShowGroupModal(false);
+                setSelectedGroup(null);
+                setSearchTerm("");
+            }
+        } catch (error) {
+            console.error('Error capturing screenshot:',error);
+            showErrorFetchAPI("Failed to capture screenshot.");
+        }
+    };
 
     if (hasPermission === null) {
         return (
-            <Loading backgroundColor="rgba(255,255,255,0.8)" logoSize={120} text="Requesting camera permission..." />
-        )
+            <Loading
+                backgroundColor="#F9FAFB"
+                logoSize={120}
+                text="Requesting camera permission..."
+            />
+        );
     }
 
     if (hasPermission === false) {
         return (
             <View style={styles.permissionContainer}>
-                <Ionicons name="camera-outline" size={64} color="#64748B" />
+                <Ionicons name="camera-outline" size={64} color="#6B7280" />
                 <Text style={styles.permissionTitle}>Camera Access Required</Text>
                 <Text style={styles.permissionText}>
                     Please enable camera access to scan your food and get nutrition information.
@@ -211,21 +292,23 @@ export default function FoodScannerScreen({ navigation }) {
                     <Text style={styles.settingsButtonText}>Open Settings</Text>
                 </TouchableOpacity>
             </View>
-        )
+        );
     }
 
     if (showResults && analysisResult) {
         return (
             <SafeAreaView style={styles.safeArea}>
-                <DynamicStatusBar backgroundColor={theme.primaryColor} />
-
-                <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
+                <DynamicStatusBar backgroundColor="transparent" />
+                <LinearGradient
+                    colors={["transparent","transparent"]}
+                    style={styles.header}
+                >
                     <TouchableOpacity onPress={retakePhoto} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                        <Ionicons name="arrow-back" size={24} color="#1F2937" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Food Analysis</Text>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color="#FFFFFF" />
+                        <Ionicons name="close" size={24} color="#1F2937" />
                     </TouchableOpacity>
                 </LinearGradient>
 
@@ -235,206 +318,262 @@ export default function FoodScannerScreen({ navigation }) {
                     onScroll={handleScroll}
                     scrollEventThrottle={16}
                 >
-                    <Animated.View
-                        style={[
-                            styles.imageContainer,
-                            {
-                                height: Math.max(200,300 - scrollY * 0.5),
-                                opacity: fadeAnim,
-                                transform: [{ translateY: slideAnim },{ scale: scaleAnim },{ translateY: scrollY * 0.3 }],
-                            },
-                        ]}
-                    >
-                        <Image source={{ uri: capturedImage }} style={styles.capturedImage} />
-                        <LinearGradient colors={["transparent","rgba(0,0,0,0.3)"]} style={styles.imageOverlay} />
-                    </Animated.View>
-
-                    <Animated.View
-                        style={[
-                            styles.nutritionCard,
-                            {
-                                opacity: fadeAnim,
-                                transform: [{ translateY: slideAnim }],
-                            },
-                        ]}
-                    >
-                        <View style={styles.foodHeader}>
-                            <Text style={styles.foodEmoji}>{analysisResult.emoji}</Text>
-                            <View style={styles.foodInfo}>
-                                <Text style={styles.foodName}>{analysisResult.name}</Text>
-                                <Text style={styles.foodWeight}>{analysisResult.weight}</Text>
+                    <ViewShot ref={viewShotRef} options={{ format: "png",quality: 0.9 }}>
+                        <Animated.View
+                            style={[
+                                styles.imageContainer,
+                                {
+                                    height: Math.max(200,300 - scrollY * 0.5),
+                                    opacity: fadeAnim,
+                                    transform: [{ translateY: slideAnim },{ scale: scaleAnim },{ translateY: scrollY * 0.3 }],
+                                },
+                            ]}
+                        >
+                            <Image source={{ uri: capturedImage }} style={styles.capturedImage} />
+                            <LinearGradient colors={["transparent","rgba(0,0,0,0.3)"]} style={styles.imageOverlay} />
+                            <View style={styles.watermark}>
+                                <Text style={styles.watermarkText}>Analysis by HMS</Text>
                             </View>
-                            <View style={styles.caloriesBadge}>
-                                <Text style={styles.caloriesText}>{analysisResult.calories}</Text>
-                                <Text style={styles.caloriesLabel}>cals</Text>
+                        </Animated.View>
+                        <View style={{ flex: 1 }}>
+                            <View
+                                style={[
+                                    styles.nutritionCard
+                                ]}
+                            >
+                                <View style={styles.foodHeader}>
+                                    <Text style={styles.foodEmoji}>{analysisResult.emoji}</Text>
+                                    <View style={styles.foodInfo}>
+                                        <Text style={styles.foodName}>{analysisResult.name}</Text>
+                                        <Text style={styles.foodWeight}>{analysisResult.weight}</Text>
+                                    </View>
+                                    <View style={styles.caloriesBadge}>
+                                        <Text style={styles.caloriesText}>{analysisResult.calories}</Text>
+                                        <Text style={styles.caloriesLabel}>cals</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.divider} />
+
+                                <Text style={styles.ingredientsTitle}>Detected Ingredients</Text>
+                                <ScrollView
+                                    style={styles.ingredientsScroll}
+                                    contentContainerStyle={{ flexGrow: 1 }}
+                                    nestedScrollEnabled={true}
+                                    showsVerticalScrollIndicator={true}
+                                >
+                                    {analysisResult.ingredients.map((ingredient,index) => (
+                                        <Animated.View
+                                            key={index}
+                                            style={[
+                                                styles.ingredientItem,
+                                                {
+                                                    opacity: fadeAnim,
+                                                    transform: [
+                                                        {
+                                                            translateY: Animated.add(slideAnim,new Animated.Value(index * 10)),
+                                                        },
+                                                    ],
+                                                },
+                                            ]}
+                                        >
+                                            <View style={styles.ingredientLeft}>
+                                                <Text style={styles.ingredientEmoji}>{ingredient.emoji}</Text>
+                                                <View style={styles.ingredientInfo}>
+                                                    <Text style={styles.ingredientName}>{ingredient.name}</Text>
+                                                    <Text style={styles.ingredientWeight}>{ingredient.weight}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.ingredientRight}>
+                                                <Text style={styles.ingredientCalories}>{ingredient.calories} cals</Text>
+                                                <View style={styles.checkmark}>
+                                                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                                                </View>
+                                            </View>
+                                        </Animated.View>
+                                    ))}
+                                </ScrollView>
                             </View>
                         </View>
-
-                        <View style={styles.divider} />
-
-                        <Text style={styles.ingredientsTitle}>Detected Ingredients</Text>
-                        <ScrollView
-                            style={styles.ingredientsScroll}
-                            nestedScrollEnabled={true}
-                            showsVerticalScrollIndicator={true}
-                        >
-                            {analysisResult.ingredients.map((ingredient,index) => (
-                                <Animated.View
-                                    key={index}
-                                    style={[
-                                        styles.ingredientItem,
-                                        {
-                                            opacity: fadeAnim,
-                                            transform: [
-                                                {
-                                                    translateY: Animated.add(slideAnim,new Animated.Value(index * 10)),
-                                                },
-                                            ],
-                                        },
-                                    ]}
-                                >
-                                    <View style={styles.ingredientLeft}>
-                                        <Text style={styles.ingredientEmoji}>{ingredient.emoji}</Text>
-                                        <View style={styles.ingredientInfo}>
-                                            <Text style={styles.ingredientName}>{ingredient.name}</Text>
-                                            <Text style={styles.ingredientWeight}>{ingredient.weight}</Text>
-                                        </View>
-                                    </View>
-                                    <View style={styles.ingredientRight}>
-                                        <Text style={styles.ingredientCalories}>{ingredient.calories} cals</Text>
-                                        <View style={styles.checkmark}>
-                                            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                                        </View>
-                                    </View>
-                                </Animated.View>
-                            ))}
-                        </ScrollView>
-                    </Animated.View>
-
-                    <Animated.View
-                        style={[
-                            styles.actionButtons,
-                            {
-                                opacity: fadeAnim,
-                                transform: [{ translateY: slideAnim }],
-                            },
-                        ]}
-                    >
-                        <TouchableOpacity style={styles.detailsButton} onPress={viewDetails}>
-                            <Ionicons name="analytics-outline" size={20} color="#4F46E5" />
-                            <Text style={styles.detailsButtonText}>View</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.retakeButton} onPress={retakePhoto}>
-                            <Ionicons name="camera-outline" size={20} color="#64748B" />
-                            <Text style={styles.retakeButtonText}>Retake</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.shareButton} onPress={shareToFeed}>
-                            <Ionicons name="share-outline" size={20} color="#FFFFFF" />
-                            <Text style={styles.shareButtonText}>Share</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
+                    </ViewShot>
 
                     <View style={styles.bottomPadding} />
                 </ScrollView>
+
+                <View style={styles.fixedActionButtons}>
+                    <TouchableOpacity style={styles.retakeButton} onPress={retakePhoto}>
+                        <Ionicons name="camera-outline" size={20} color="#6B7280" />
+                        <Text style={styles.retakeButtonText}>Retake</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.shareButton} onPress={handleSharePress}>
+                        <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.shareButtonText}>Share</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <Modal
+                    animationType="slide"
+                    transparent={true}
+                    visible={showGroupModal}
+                    onRequestClose={() => setShowGroupModal(false)}
+                >
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalContent}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Share to Group</Text>
+                                <TouchableOpacity onPress={() => setShowGroupModal(false)}>
+                                    <Ionicons name="close" size={24} color="#1F2937" />
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.searchContainer}>
+                                <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Search groups..."
+                                    value={searchTerm}
+                                    onChangeText={handleSearch}
+                                />
+                            </View>
+                            <FlatList
+                                data={groups}
+                                keyExtractor={(item) => item.groupId.toString()}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.groupItem,
+                                            selectedGroup?.groupId === item.groupId && styles.groupItemSelected,
+                                        ]}
+                                        onPress={() => handleGroupSelect(item)}
+                                    >
+                                        <View style={styles.groupItemContent}>
+                                            <Ionicons
+                                                name={item.IsPrivate ? "lock-closed" : "people"}
+                                                size={24}
+                                                color={selectedGroup?.groupId === item.groupId ? "#0056d2" : "#6B7280"}
+                                                style={styles.groupIcon}
+                                            />
+                                            <View style={styles.groupInfo}>
+                                                <Text style={styles.groupName}>{item.groupName}</Text>
+                                                <RenderHTML
+                                                    contentWidth={width - 100}
+                                                    source={{
+                                                        html: item.description
+                                                            ? `<div>${item.description.substring(0,50)}...</div>`
+                                                            : "<div>No description</div>",
+                                                    }}
+                                                    baseStyle={styles.groupDescription}
+                                                />
+                                            </View>
+                                            {selectedGroup?.groupId === item.groupId && (
+                                                <Ionicons name="checkmark-circle" size={24} color="#0056d2" />
+                                            )}
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
+                                style={styles.groupList}
+                            />
+                            <View style={styles.modalButtons}>
+                                <TouchableOpacity
+                                    style={styles.cancelButton}
+                                    onPress={() => setShowGroupModal(false)}
+                                >
+                                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.goButton,!selectedGroup && styles.goButtonDisabled]}
+                                    onPress={shareToFeed}
+                                    disabled={!selectedGroup}
+                                >
+                                    <Text style={styles.goButtonText}>Go</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </SafeAreaView>
-        )
+        );
     }
 
     if (isAnalyzing) {
         return (
-            <Loading backgroundColor="rgba(255,255,255,0.8)" logoSize={120} text={"Analyzing your food...\nOur AI is identifying ingredients and calculating nutrition information"} />
-        )
+            <Loading
+                backgroundColor="#F9FAFB"
+                logoSize={120}
+                text={"Analyzing your food...\nOur AI is identifying ingredients and calculating nutrition information"}
+            />
+        );
     }
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
-
-            <LinearGradient colors={["#4F46E5","#6366F1","#818CF8"]} style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Scan Food</Text>
-            </LinearGradient>
-
+            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
             <View style={styles.cameraContainer}>
-                <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-                    <View style={styles.cameraOverlay}>
-                        <View style={styles.scanFrame}>
-                            <View style={[styles.corner,styles.topLeft]} />
-                            <View style={[styles.corner,styles.topRight]} />
-                            <View style={[styles.corner,styles.bottomLeft]} />
-                            <View style={[styles.corner,styles.bottomRight]} />
-                        </View>
-
-                        <Text style={styles.scanInstruction}>Position your food within the frame</Text>
+                <CameraView ref={cameraRef} style={styles.camera} facing={facing} />
+                <View style={styles.cameraOverlay}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <View style={styles.scanFrame}>
+                        <View style={[styles.corner,styles.topLeft]} />
+                        <View style={[styles.corner,styles.topRight]} />
+                        <View style={[styles.corner,styles.bottomLeft]} />
+                        <View style={[styles.corner,styles.bottomRight]} />
                     </View>
-                </CameraView>
+                    <Text style={styles.scanInstruction}>Position your food within the frame</Text>
+                </View>
             </View>
 
             <View style={styles.cameraControls}>
                 <TouchableOpacity onPress={flipCamera} style={styles.flipButton}>
                     <Ionicons name="camera-reverse-outline" size={28} color="#FFFFFF" />
                 </TouchableOpacity>
-
                 <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
                     <View style={styles.captureButtonInner} />
                 </TouchableOpacity>
-
                 <TouchableOpacity style={styles.galleryButton} onPress={pickImageFromGallery}>
                     <Ionicons name="images-outline" size={28} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
             <View style={styles.tipContainer}>
-                <Ionicons name="bulb-outline" size={20} color="#4F46E5" />
-                <Text style={styles.tipText}>For best results, ensure good lighting and place food on a plain background</Text>
+                <Ionicons name="bulb-outline" size={20} color="#0056d2" />
+                <Text style={styles.tipText}>
+                    For best results, ensure good lighting and place food on a plain background
+                </Text>
             </View>
         </SafeAreaView>
-    )
+    );
 }
 
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#000000",
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#F8FAFC",
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: "#64748B",
+        backgroundColor: "#F9FAFB",
     },
     permissionContainer: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#F8FAFC",
+        backgroundColor: "#F9FAFB",
         paddingHorizontal: 32,
     },
     permissionTitle: {
         fontSize: 24,
         fontWeight: "700",
-        color: "#1E293B",
+        color: "#1F2937",
         marginTop: 16,
         marginBottom: 8,
     },
     permissionText: {
         fontSize: 16,
-        color: "#64748B",
+        color: "#6B7280",
         textAlign: "center",
         lineHeight: 24,
         marginBottom: 24,
     },
     settingsButton: {
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#0056d2",
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 8,
@@ -447,33 +586,41 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "center",
         paddingHorizontal: 16,
         paddingVertical: 12,
         paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 12 : 12,
     },
     backButton: {
         padding: 8,
+        position: "absolute",
+        top: Platform.OS === "android" ? StatusBar.currentHeight + 8 : 8,
+        left: 8,
+        zIndex: 1,
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: "700",
-        color: "#FFFFFF",
-    },
-    flashButton: {
-        padding: 8,
+        color: "#1F2937",
+        textAlign: "center",
+        flex: 1,
     },
     closeButton: {
         padding: 8,
+        position: "absolute",
+        top: Platform.OS === "android" ? StatusBar.currentHeight + 8 : 8,
+        right: 8,
+        zIndex: 1,
     },
     cameraContainer: {
         flex: 1,
+        position: "relative",
     },
     camera: {
         flex: 1,
     },
     cameraOverlay: {
-        flex: 1,
+        ...StyleSheet.absoluteFillObject,
         justifyContent: "center",
         alignItems: "center",
     },
@@ -486,7 +633,7 @@ const styles = StyleSheet.create({
         position: "absolute",
         width: 30,
         height: 30,
-        borderColor: "#4F46E5",
+        borderColor: "#0056d2",
         borderWidth: 3,
     },
     topLeft: {
@@ -554,7 +701,7 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#0056d2",
     },
     galleryButton: {
         width: 56,
@@ -567,80 +714,25 @@ const styles = StyleSheet.create({
     tipContainer: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#EEF2FF",
+        backgroundColor: "#F3F4F6",
         marginHorizontal: 16,
         marginBottom: 16,
+        marginTop: 5,
         padding: 12,
         borderRadius: 8,
         borderLeftWidth: 4,
-        borderLeftColor: "#4F46E5",
+        borderLeftColor: "#0056d2",
     },
     tipText: {
         flex: 1,
         fontSize: 14,
-        color: "#3730A3",
+        color: "#1F2937",
         marginLeft: 8,
         lineHeight: 20,
     },
-    analyzingContainer: {
-        flex: 1,
-        position: "relative",
-    },
-    analyzingImage: {
-        width: "100%",
-        height: "100%",
-        resizeMode: "cover",
-    },
-    analyzingOverlay: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.7)",
-        justifyContent: "center",
-        alignItems: "center",
-        paddingHorizontal: 32,
-    },
-    analyzingTitle: {
-        fontSize: 24,
-        fontWeight: "700",
-        color: "#FFFFFF",
-        marginTop: 24,
-        marginBottom: 8,
-    },
-    analyzingText: {
-        fontSize: 16,
-        color: "#D1D5DB",
-        textAlign: "center",
-        lineHeight: 24,
-        marginBottom: 32,
-    },
-    progressSteps: {
-        alignItems: "flex-start",
-    },
-    progressStep: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    progressDot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: "#374151",
-        marginRight: 12,
-    },
-    progressDotActive: {
-        backgroundColor: "#4F46E5",
-    },
-    progressStepText: {
-        fontSize: 16,
-        color: "#FFFFFF",
-    },
     resultsContainer: {
         flex: 1,
-        backgroundColor: "#F8FAFC",
+        backgroundColor: "#F9FAFB",
     },
     imageContainer: {
         position: "relative",
@@ -660,20 +752,41 @@ const styles = StyleSheet.create({
         right: 0,
         height: 60,
     },
+    watermark: {
+        position: "absolute",
+        bottom: 10,
+        right: 10,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    watermarkText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#FFFFFF",
+    },
     nutritionCard: {
         backgroundColor: "#FFFFFF",
         marginHorizontal: 16,
-        borderRadius: 20,
+        borderRadius: 12,
         padding: 24,
         marginBottom: 16,
-        shadowColor: "#4F46E5",
-        shadowOffset: { width: 0,height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 8,
+        ...Platform.select({
+            ios: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0,height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+            },
+            android: {
+                elevation: 2,
+            },
+        }),
     },
     ingredientsScroll: {
-        height: 350,
+        height: 320,
+        maxHeight: 400,
     },
     foodHeader: {
         flexDirection: "row",
@@ -689,16 +802,16 @@ const styles = StyleSheet.create({
     },
     foodName: {
         fontSize: 20,
-        fontWeight: "700",
-        color: "#1E293B",
+        fontWeight: "600",
+        color: "#1F2937",
         marginBottom: 2,
     },
     foodWeight: {
         fontSize: 14,
-        color: "#64748B",
+        color: "#6B7280",
     },
     caloriesBadge: {
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#0056d2",
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 12,
@@ -706,7 +819,7 @@ const styles = StyleSheet.create({
     },
     caloriesText: {
         fontSize: 18,
-        fontWeight: "700",
+        fontWeight: "600",
         color: "#FFFFFF",
     },
     caloriesLabel: {
@@ -716,13 +829,13 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: "#E2E8F0",
+        backgroundColor: "#E5E7EB",
         marginBottom: 16,
     },
     ingredientsTitle: {
         fontSize: 16,
         fontWeight: "600",
-        color: "#374151",
+        color: "#1F2937",
         marginBottom: 12,
     },
     ingredientItem: {
@@ -742,19 +855,6 @@ const styles = StyleSheet.create({
         fontSize: 20,
         marginRight: 12,
     },
-    ingredientInfo: {
-        flex: 1,
-    },
-    ingredientName: {
-        fontSize: 16,
-        fontWeight: "500",
-        color: "#1E293B",
-        marginBottom: 2,
-    },
-    ingredientWeight: {
-        fontSize: 14,
-        color: "#64748B",
-    },
     ingredientRight: {
         flexDirection: "row",
         alignItems: "center",
@@ -762,39 +862,26 @@ const styles = StyleSheet.create({
     ingredientCalories: {
         fontSize: 14,
         fontWeight: "600",
-        color: "#4F46E5",
+        color: "#0056d2",
         marginRight: 8,
     },
     checkmark: {
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: "#4F46E5",
+        backgroundColor: "#0056d2",
         justifyContent: "center",
         alignItems: "center",
     },
-    actionButtons: {
+    fixedActionButtons: {
+        position: "absolute",
+        bottom: 16,
+        left: 16,
+        right: 16,
         flexDirection: "row",
+        justifyContent: "space-between",
         paddingHorizontal: 16,
-        marginBottom: 16,
-    },
-    detailsButton: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#FFFFFF",
-        paddingVertical: 12,
-        borderRadius: 8,
-        marginRight: 8,
-        borderWidth: 1,
-        borderColor: "#4F46E5",
-    },
-    detailsButtonText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#4F46E5",
-        marginLeft: 6,
+        backgroundColor: "transparent",
     },
     retakeButton: {
         flex: 1,
@@ -802,16 +889,27 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "#FFFFFF",
-        paddingVertical: 12,
-        borderRadius: 8,
+        paddingVertical: 14,
+        borderRadius: 12,
         marginRight: 8,
         borderWidth: 1,
-        borderColor: "#CBD5E1",
+        borderColor: "#E5E7EB",
+        ...Platform.select({
+            ios: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0,height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     retakeButtonText: {
         fontSize: 16,
         fontWeight: "600",
-        color: "#64748B",
+        color: "#6B7280",
         marginLeft: 6,
     },
     shareButton: {
@@ -819,9 +917,20 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#4F46E5",
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: "#0056d2",
+        paddingVertical: 14,
+        borderRadius: 12,
+        ...Platform.select({
+            ios: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0,height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     shareButtonText: {
         fontSize: 16,
@@ -830,6 +939,129 @@ const styles = StyleSheet.create({
         marginLeft: 6,
     },
     bottomPadding: {
-        height: 80,
+        height: 100,
     },
-})
+    modalContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "rgba(0,0,0,0.5)",
+    },
+    modalContent: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        padding: 20,
+        width: width * 0.9,
+        maxHeight: height * 0.7,
+        ...Platform.select({
+            ios: {
+                shadowColor: "#000",
+                shadowOffset: { width: 0,height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+            },
+            android: {
+                elevation: 6,
+            },
+        }),
+    },
+    modalHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: "700",
+        color: "#1F2937",
+    },
+    searchContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        marginBottom: 16,
+        backgroundColor: "#F9FAFB",
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        paddingVertical: 12,
+        fontSize: 16,
+        color: "#1F2937",
+    },
+    groupList: {
+        maxHeight: height * 0.4,
+    },
+    groupItem: {
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 8,
+        backgroundColor: "#F9FAFB",
+    },
+    groupItemSelected: {
+        backgroundColor: "#E6F0FA",
+        borderWidth: 1,
+        borderColor: "#0056d2",
+    },
+    groupItemContent: {
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    groupIcon: {
+        marginRight: 12,
+    },
+    groupInfo: {
+        flex: 1,
+    },
+    groupName: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#1F2937",
+        marginBottom: 4,
+    },
+    groupDescription: {
+        fontSize: 14,
+        color: "#6B7280",
+    },
+    modalButtons: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginTop: 16,
+    },
+    cancelButton: {
+        flex: 1,
+        alignItems: "center",
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+        marginRight: 8,
+        backgroundColor: "#FFFFFF",
+    },
+    cancelButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#6B7280",
+    },
+    goButton: {
+        flex: 1,
+        alignItems: "center",
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: "#0056d2",
+    },
+    goButtonDisabled: {
+        backgroundColor: "#A0AEC0",
+    },
+    goButtonText: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#FFFFFF",
+    },
+});
