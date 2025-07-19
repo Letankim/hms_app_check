@@ -5,14 +5,20 @@ import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { showInfoMessage } from 'utils/toastUtil';
+import * as Notifications from 'expo-notifications';
+import { useContext } from 'react';
+import { AuthContext } from 'context/AuthContext';
+import apiChatSupportService from 'services/apiChatSupport';
 
 const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
     const navigation = useNavigation();
+    const { user } = useContext(AuthContext);
     const [countdown,setCountdown] = useState(30);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const soundRef = useRef(null);
     const timerRef = useRef(null);
     const shakeAnim = useRef(new Animated.Value(0)).current;
+    const notificationListener = useRef(null);
 
     const startShaking = () => {
         Animated.loop(
@@ -38,13 +44,46 @@ const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
 
     const rejectCall = async () => {
         try {
-            console.log('Calling reject API for roomId:',incomingCall?.roomId);
+            if (!incomingCall?.roomId || !user?.userId) {
+                throw new Error('Missing roomId or userId');
+            }
+            await apiChatSupportService.rejectCall({
+                roomId: incomingCall.roomId,
+                rejectorId: user.userId,
+            });
             showInfoMessage("The call has been canceled");
         } catch (error) {
-            console.error('Error rejecting call:',error);
+        } finally {
+            if (timerRef.current) clearInterval(timerRef.current);
+            if (soundRef.current) {
+                soundRef.current.stopAsync();
+                soundRef.current.unloadAsync();
+            }
+            setIncomingCall(null);
         }
+    };
 
-        setIncomingCall(null);
+    const acceptCall = async () => {
+        try {
+            if (!incomingCall?.roomId || !user?.userId) {
+                throw new Error('Missing roomId or userId');
+            }
+            await apiChatSupportService.acceptCall({
+                roomId: incomingCall.roomId,
+                userId: user.userId,
+            });
+            if (timerRef.current) clearInterval(timerRef.current);
+            if (soundRef.current) {
+                soundRef.current.stopAsync();
+                soundRef.current.unloadAsync();
+            }
+            setIncomingCall(null);
+            navigation.navigate('VideoCallSupport',{
+                roomId: incomingCall.roomId,
+            });
+        } catch (error) {
+
+        }
     };
 
     useEffect(() => {
@@ -80,16 +119,23 @@ const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
                 toValue: 1,
                 duration: 500,
                 useNativeDriver: true,
-            }).start();
-
-            Animated.timing(fadeAnim,{
-                toValue: 1,
-                duration: 500,
-                useNativeDriver: true,
             }).start(() => {
                 startShaking();
             });
 
+            notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+                const data = notification.request.content.data;
+
+                if (data.type === 'call-cancelled' && data.roomId === incomingCall.roomId) {
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    if (soundRef.current) {
+                        soundRef.current.stopAsync();
+                        soundRef.current.unloadAsync();
+                    }
+                    setIncomingCall(null);
+                    showInfoMessage("The call has been canceled by the caller");
+                }
+            });
         }
 
         return () => {
@@ -97,6 +143,9 @@ const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
             if (soundRef.current) {
                 soundRef.current.stopAsync();
                 soundRef.current.unloadAsync();
+            }
+            if (notificationListener.current) {
+                Notifications.removeNotificationSubscription(notificationListener.current);
             }
         };
     },[incomingCall]);
@@ -116,9 +165,8 @@ const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
                     <TouchableOpacity
                         style={[styles.button,styles.declineButton]}
                         onPress={() => {
-                            if (timerRef.current) clearInterval(timerRef.current);
-                            rejectCall();
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                            rejectCall();
                         }}
                     >
                         <FontAwesome name="close" size={24} color="#fff" />
@@ -128,12 +176,8 @@ const IncomingCallNotification = ({ incomingCall,setIncomingCall }) => {
                     <TouchableOpacity
                         style={[styles.button,styles.acceptButton]}
                         onPress={() => {
-                            if (timerRef.current) clearInterval(timerRef.current);
-                            setIncomingCall(null);
-                            navigation.navigate('VideoCallSupport',{
-                                roomId: incomingCall.roomId,
-                            });
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                            acceptCall();
                         }}
                     >
                         <Ionicons name="call" size={24} color="#fff" />

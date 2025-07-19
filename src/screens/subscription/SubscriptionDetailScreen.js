@@ -9,13 +9,13 @@ import {
     Platform,
     Dimensions,
     Share,
-    Modal
 } from "react-native";
 import { showErrorFetchAPI,showSuccessMessage } from "utils/toastUtil";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons,MaterialCommunityIcons } from "@expo/vector-icons";
 import Header from "components/Header";
 import DynamicStatusBar from "screens/statusBar/DynamicStatusBar";
+import { ActivityIndicator } from "react-native-paper";
 import apiTrainerService from "services/apiTrainerService";
 import { Image } from "react-native";
 import { theme } from "theme/color";
@@ -23,7 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from 'expo-notifications';
 import { AuthContext } from "context/AuthContext";
 import apiChatSupportService from "services/apiChatSupport";
-import { ActivityIndicator } from "react-native-paper";
+import CallWaitingPopup from "components/calling/CallWaitingPopup";
 
 const { width } = Dimensions.get("window");
 
@@ -100,8 +100,6 @@ const SubscriptionDetailScreen = ({ route,navigation }) => {
     useEffect(() => {
         notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
             const data = notification.request.content.data;
-            console.log('🔔 Nhận được thông báo ở detail:',data);
-
             if (data.type === 'call-incoming' && data.roomId) {
                 setIncomingCall({
                     roomId: data.roomId,
@@ -115,14 +113,6 @@ const SubscriptionDetailScreen = ({ route,navigation }) => {
                 setShowCallWaitingPopup(false);
                 setCurrentRoomId(null);
                 showErrorFetchAPI(`Call was rejected by ${data.rejectorId}`);
-            }
-        });
-
-        responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-            console.log('📲 User nhấn vào thông báo:',JSON.stringify(response,null,2));
-            const data = response.notification.request.content.data;
-            if (data.type === 'call-incoming' && data.roomId) {
-                navigation.navigate('VideoCallSupport',{ roomId: data.roomId });
             }
         });
 
@@ -227,7 +217,6 @@ const SubscriptionDetailScreen = ({ route,navigation }) => {
                 userId: user.userId,
                 trainerId: subscription.trainerId
             });
-            console.log('Create call room response:',response);
             if (response.statusCode === 200 && response.data) {
                 setCurrentRoomId(response.data.roomId);
                 setShowCallWaitingPopup(true);
@@ -240,21 +229,6 @@ const SubscriptionDetailScreen = ({ route,navigation }) => {
             showErrorFetchAPI(error.message || 'Failed to initiate call with trainer');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleCancelCall = async () => {
-        try {
-            if (!currentRoomId || !user?.userId) return;
-            await apiChatSupportService.rejectCall({
-                roomId: currentRoomId,
-                rejectorId: user.userId
-            });
-            setShowCallWaitingPopup(false);
-            setCurrentRoomId(null);
-            showSuccessMessage("Call request cancelled");
-        } catch (error) {
-            showErrorFetchAPI("Failed to cancel call request");
         }
     };
 
@@ -307,22 +281,13 @@ const SubscriptionDetailScreen = ({ route,navigation }) => {
                     <ActivityIndicator size="large" color={theme.secondaryColor} />
                 </View>
             )}
-            <Modal
+            <CallWaitingPopup
                 visible={showCallWaitingPopup}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={handleCancelCall}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.popupContainer}>
-                        <Ionicons name="call-outline" size={40} color={theme.secondaryColor} style={styles.popupIcon} />
-                        <Text style={styles.popupText}>Waiting for trainer response...</Text>
-                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancelCall}>
-                            <Text style={styles.cancelButtonText}>Cancel Call</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
+                setVisible={setShowCallWaitingPopup}
+                roomId={currentRoomId}
+                userId={user?.userId}
+                setRoomId={setCurrentRoomId}
+            />
             <ScrollView style={[styles.container,{ marginTop: 55 }]} showsVerticalScrollIndicator={false}>
                 {/* Hero Section */}
                 <Animated.View
@@ -905,45 +870,6 @@ const styles = StyleSheet.create({
     },
     bottomSpacing: {
         height: 40,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    popupContainer: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 24,
-        alignItems: 'center',
-        width: width * 0.8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0,height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    popupIcon: {
-        marginBottom: 16,
-    },
-    popupText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: theme.textPrimary,
-        textAlign: 'center',
-        marginBottom: 24,
-    },
-    cancelButton: {
-        backgroundColor: theme.dangerColor,
-        borderRadius: 12,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-    },
-    cancelButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFFFFF',
     },
 });
 
